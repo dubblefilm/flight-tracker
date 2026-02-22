@@ -1258,14 +1258,15 @@
     }
 
     function createPlaneIcon(heading) {
-      var rot = typeof heading === 'number' ? 'transform:rotate(' + heading + 'deg);' : '';
+      // ✈ emoji points upper-right (~315deg), offset so 0deg = north
+      var rot = typeof heading === 'number' ? 'transform:rotate(' + (heading - 315) + 'deg);' : '';
       return L.divIcon({
         className: '',
         html: '<div style="position:relative;width:56px;height:56px;' + rot + '">' +
           '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">' +
-            '<div style="width:28px;height:28px;background:rgba(224,136,64,0.3);border-radius:50%;"></div>' +
+            '<div style="width:28px;height:28px;background:rgba(219,39,119,0.25);border-radius:50%;"></div>' +
           '</div>' +
-          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;line-height:1;color:#e08840;cursor:pointer;filter:drop-shadow(1px 2px 2px rgba(44,24,16,0.5));">&#9992;</div>' +
+          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;line-height:1;color:#db2777;cursor:pointer;filter:drop-shadow(1px 2px 2px rgba(44,24,16,0.5));">&#9992;</div>' +
         '</div>',
         iconSize: [56, 56], iconAnchor: [28, 28],
       });
@@ -1298,7 +1299,7 @@
       flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.4, dashArray: '6 5' }).addTo(map);
 
       // Solid traveled portion — navy blue, sits exactly on top
-      var traveled = L.polyline(traveledArc, { color: '#4a7a9a', weight: 3, opacity: 0.9 }).addTo(map);
+      var traveled = L.polyline(traveledArc, { color: '#db2777', weight: 3, opacity: 0.9 }).addTo(map);
       markersList.push(traveled);
 
       var depM = L.marker(dep, { icon: createAirportIcon('dep') })
@@ -1468,9 +1469,17 @@
 
           planeIdx = Math.max(0, Math.min(99, planeIdx));
           var planePos = fullArc[planeIdx];
+
+          // Calculate heading from arc direction if not provided by live data
+          if (planeHeading === null && planeIdx < 99) {
+            var nextPt = fullArc[Math.min(planeIdx + 1, 99)];
+            var dLat = nextPt[0] - planePos[0];
+            var dLon = nextPt[1] - planePos[1];
+            planeHeading = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360;
+          }
           var traveledArc = fullArc.slice(0, planeIdx + 1);
 
-          var traveled = L.polyline(traveledArc, { color: '#e08840', weight: 3.5, opacity: 0.85 }).addTo(map);
+          var traveled = L.polyline(traveledArc, { color: '#db2777', weight: 3.5, opacity: 0.85 }).addTo(map);
           markersList.push(traveled);
 
           var planeM = L.marker(planePos, { icon: createPlaneIcon(planeHeading), zIndexOffset: 500 }).addTo(map);
