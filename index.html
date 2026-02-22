@@ -438,6 +438,8 @@
     .api-bar-fill.green { background: #4a8a5e; }
     .api-bar-fill.yellow { background: #b8961e; }
     .api-bar-fill.blue { background: #2a5a6b; }
+    .api-bar-fill.red { background: #8b2020; }
+    .api-warning { font-size: 0.6rem; color: #8b2020; font-weight: 700; margin-top: 4px; }
 
     /* ── Error toast ── */
     #error-toast {
@@ -663,7 +665,7 @@
         </div>
         <div class="spinner" id="landing-spinner"></div>
         <p class="demo-hint">Try demonstration flights: <span>AA100</span>, <span>UA302</span>, <span>BA178</span>, <span>DL50</span></p>
-        <p class="live-note">Enter any callsign to track live &mdash; only flights currently in the air will appear</p>
+        <p class="live-note">Enter any callsign to track live flights, or any flight number for schedule data</p>
       </div>
 
       <!-- Top Bar -->
@@ -730,6 +732,7 @@
               <div class="api-name">AviationStack</div>
               <div class="api-limit"><span id="avstack-used">0</span> / 100 req · monthly</div>
               <div class="api-bar"><div class="api-bar-fill green" id="avstack-bar" style="width:0%"></div></div>
+              <div class="api-warning" id="avstack-warning" style="display:none"></div>
             </div>
           </div>
           <div class="api-row">
@@ -847,22 +850,78 @@
       });
     }
 
-    // ── API usage tracking ──
+    // ── Cloudflare Worker URL ──
+    // After deploying the worker, replace with your actual URL:
+    //   https://flight-tracker-proxy.<your-subdomain>.workers.dev
+    const WORKER_URL = 'https://flight-tracker-proxy.shoot.workers.dev';
+
+    // ── API usage tracking (persisted in localStorage) ──
     const apiUsage = {
       aviationstack: { used: 0, limit: 100 },
       opensky:       { used: 0, limit: 400 },
     };
 
+    function loadApiUsage() {
+      try {
+        var saved = JSON.parse(localStorage.getItem('flightTracker_apiUsage'));
+        if (saved) {
+          // Reset AviationStack counter on new month
+          var now = new Date();
+          var currentMonth = now.getFullYear() + '-' + (now.getMonth() + 1);
+          if (saved.month !== currentMonth) {
+            saved.aviationstack = 0;
+            saved.month = currentMonth;
+          }
+          // Reset OpenSky counter on new day
+          var currentDay = now.toISOString().slice(0, 10);
+          if (saved.day !== currentDay) {
+            saved.opensky = 0;
+            saved.day = currentDay;
+          }
+          apiUsage.aviationstack.used = saved.aviationstack || 0;
+          apiUsage.opensky.used = saved.opensky || 0;
+        }
+      } catch (e) { /* ignore parse errors */ }
+      updateApiCounters();
+    }
+
+    function saveApiUsage() {
+      var now = new Date();
+      localStorage.setItem('flightTracker_apiUsage', JSON.stringify({
+        aviationstack: apiUsage.aviationstack.used,
+        opensky: apiUsage.opensky.used,
+        month: now.getFullYear() + '-' + (now.getMonth() + 1),
+        day: now.toISOString().slice(0, 10),
+      }));
+    }
+
     function updateApiCounters() {
+      var avPct = (apiUsage.aviationstack.used / apiUsage.aviationstack.limit) * 100;
       document.getElementById('avstack-used').textContent = apiUsage.aviationstack.used;
-      document.getElementById('avstack-bar').style.width = ((apiUsage.aviationstack.used / apiUsage.aviationstack.limit) * 100) + '%';
+      var avBar = document.getElementById('avstack-bar');
+      avBar.style.width = avPct + '%';
+      avBar.className = 'api-bar-fill ' + (avPct >= 80 ? 'red' : 'green');
+
+      var warning = document.getElementById('avstack-warning');
+      if (apiUsage.aviationstack.used >= apiUsage.aviationstack.limit) {
+        warning.textContent = 'Monthly limit reached';
+        warning.style.display = 'block';
+      } else if (apiUsage.aviationstack.used >= 80) {
+        warning.textContent = (apiUsage.aviationstack.limit - apiUsage.aviationstack.used) + ' requests remaining';
+        warning.style.display = 'block';
+      } else {
+        warning.style.display = 'none';
+      }
+
       document.getElementById('opensky-used').textContent = apiUsage.opensky.used;
       document.getElementById('opensky-bar').style.width = ((apiUsage.opensky.used / apiUsage.opensky.limit) * 100) + '%';
     }
 
     function recordApiCall(api) {
-      if (apiUsage[api]) { apiUsage[api].used++; updateApiCounters(); }
+      if (apiUsage[api]) { apiUsage[api].used++; saveApiUsage(); updateApiCounters(); }
     }
+
+    loadApiUsage();
 
     // ── Demo flights ──
     const DEMO_FLIGHTS = {
@@ -1022,9 +1081,6 @@
       topbar.classList.add('visible');
       apiToggle.classList.add('visible');
       map.getPane('labelsPane').style.opacity = '1';
-
-      recordApiCall('aviationstack');
-      recordApiCall('opensky');
     }
 
     function displayLiveFlight(ac) {
@@ -1080,6 +1136,135 @@
       map.getPane('labelsPane').style.opacity = '1';
     }
 
+    function displayScheduledFlight(flight) {
+      clearMap();
+
+      var dep = flight.departure;
+      var arr = flight.arrival;
+      var live = flight.live;
+      var status = (flight.flight_status || '').toLowerCase();
+
+      // We need airport coordinates — AviationStack doesn't always provide them.
+      // Use timezone as a fallback hint, but if no lat/lon just show info panel.
+      var hasDepCoords = dep && typeof dep.latitude === 'number' && typeof dep.longitude === 'number';
+      var hasArrCoords = arr && typeof arr.latitude === 'number' && typeof arr.longitude === 'number';
+      var hasLive = live && typeof live.latitude === 'number' && typeof live.longitude === 'number';
+
+      if (hasDepCoords && hasArrCoords) {
+        var depPt = [dep.latitude, dep.longitude];
+        var arrPt = [arr.latitude, arr.longitude];
+
+        if (status === 'active' && hasLive) {
+          // Active flight with position — show full route + plane
+          var curPt = [live.latitude, live.longitude];
+          var fullArc = generateArc(depPt, arrPt, 100);
+
+          var bestIdx = 0;
+          var bestDist = Infinity;
+          for (var i = 0; i < fullArc.length; i++) {
+            var dLat = fullArc[i][0] - curPt[0];
+            var dLon = fullArc[i][1] - curPt[1];
+            var dist = dLat * dLat + dLon * dLon;
+            if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+          }
+          var traveledArc = fullArc.slice(0, bestIdx + 1);
+          var planePos = fullArc[bestIdx];
+
+          flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.4, dashArray: '6 5' }).addTo(map);
+          var traveled = L.polyline(traveledArc, { color: '#4a7a9a', weight: 3, opacity: 0.9 }).addTo(map);
+          markersList.push(traveled);
+
+          var heading = typeof live.direction === 'number' ? live.direction : null;
+          var planeM = L.marker(planePos, { icon: createPlaneIcon(heading) }).addTo(map);
+          planeM.on('click', function() { infoPanel.classList.toggle('visible'); });
+          markersList.push(planeM);
+
+          var depM = L.marker(depPt, { icon: createAirportIcon('dep') })
+            .bindTooltip(dep.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+          var arrM = L.marker(arrPt, { icon: createAirportIcon('arr') })
+            .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+          markersList.push(depM, arrM);
+
+          map.fitBounds(L.latLngBounds([depPt, arrPt, curPt]).pad(0.15), { duration: 0.8 });
+        } else {
+          // Scheduled or landed — show airports with dashed route, no plane
+          var fullArc = generateArc(depPt, arrPt, 100);
+          flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.5, dashArray: '6 5' }).addTo(map);
+
+          var depM = L.marker(depPt, { icon: createAirportIcon('dep') })
+            .bindTooltip(dep.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+          var arrM = L.marker(arrPt, { icon: createAirportIcon('arr') })
+            .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+          markersList.push(depM, arrM);
+
+          map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.2), { duration: 0.8 });
+        }
+      } else {
+        // No coordinates — just center on a wide view
+        map.setView([20, 0], 2, { duration: 0.5 });
+      }
+
+      // Show route-visual, hide live detail grid
+      document.getElementById('route-visual').classList.remove('hidden');
+      document.getElementById('live-detail-grid').classList.remove('visible');
+
+      // Flight header
+      var iata = (flight.flight && flight.flight.iata) ? flight.flight.iata.toUpperCase() : '';
+      var icao = (flight.flight && flight.flight.icao) ? flight.flight.icao.toUpperCase() : '';
+      document.getElementById('fl-number').textContent = iata || icao || '?';
+
+      var s = document.getElementById('fl-status');
+      s.textContent = status || 'unknown';
+      if (status === 'active') s.className = 'flight-status status-active';
+      else if (status === 'landed') s.className = 'flight-status status-landed';
+      else s.className = 'flight-status status-scheduled';
+
+      var airline = (flight.airline && flight.airline.name) ? flight.airline.name : 'Schedule data via AviationStack';
+      document.getElementById('fl-airline-row').textContent = airline;
+
+      // Route info
+      document.getElementById('fl-dep-code').textContent = (dep && dep.iata) ? dep.iata : '---';
+      document.getElementById('fl-dep-city').textContent = (dep && dep.airport) ? dep.airport : '--';
+      document.getElementById('fl-arr-code').textContent = (arr && arr.iata) ? arr.iata : '---';
+      document.getElementById('fl-arr-city').textContent = (arr && arr.airport) ? arr.airport : '--';
+
+      // Detail grid
+      function fmtTime(t) {
+        if (!t) return '--';
+        try { return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        catch (e) { return t; }
+      }
+
+      var depTime = (dep && (dep.actual || dep.estimated || dep.scheduled)) || null;
+      var arrTime = (arr && (arr.actual || arr.estimated || arr.scheduled)) || null;
+      document.getElementById('fl-dep-time').textContent = fmtTime(depTime);
+      document.getElementById('fl-arr-time').textContent = fmtTime(arrTime);
+
+      var aircraft = (flight.aircraft && flight.aircraft.iata) ? flight.aircraft.iata : '--';
+      document.getElementById('fl-aircraft').textContent = aircraft;
+
+      // Show delay if present
+      var depDelay = dep && dep.delay;
+      var arrDelay = arr && arr.delay;
+      var delayStr = '';
+      if (depDelay) delayStr = 'Dep +' + depDelay + 'm';
+      if (arrDelay) delayStr += (delayStr ? ', ' : '') + 'Arr +' + arrDelay + 'm';
+      document.getElementById('fl-altitude').textContent = delayStr || '--';
+      document.getElementById('fl-speed').textContent = (live && typeof live.speed_horizontal === 'number') ? Math.round(live.speed_horizontal) + ' km/h' : '--';
+      document.getElementById('fl-duration').textContent = '--';
+
+      // Relabel detail items for scheduled/landed context
+      var altLabel = document.querySelector('#fl-altitude').previousElementSibling;
+      if (altLabel) altLabel.textContent = 'Delay';
+      var spdLabel = document.querySelector('#fl-speed').previousElementSibling;
+      if (spdLabel) spdLabel.textContent = live ? 'Speed' : 'Speed';
+
+      landing.classList.add('hidden');
+      topbar.classList.add('visible');
+      apiToggle.classList.add('visible');
+      map.getPane('labelsPane').style.opacity = '1';
+    }
+
     function trackFlight(query) {
       const code = query.trim().toUpperCase().replace(/\s+/g, '');
       if (!code) return;
@@ -1095,7 +1280,7 @@
         return;
       }
 
-      // Live lookup via ADSB.lol
+      // Live lookup via ADSB.lol, then fallback to AviationStack worker
       spinner.classList.add('visible');
       fetch('https://api.adsb.lol/v2/callsign/' + encodeURIComponent(code))
         .then(function(res) {
@@ -1103,17 +1288,54 @@
           return res.json();
         })
         .then(function(json) {
-          spinner.classList.remove('visible');
           var acList = json.ac;
-          if (!acList || acList.length === 0) {
-            showError('Flight \u201C' + code + '\u201D not found \u2014 only flights currently in the air can be tracked.');
+          if (acList && acList.length > 0) {
+            spinner.classList.remove('visible');
+            displayLiveFlight(acList[0]);
             return;
           }
-          displayLiveFlight(acList[0]);
+          // Not found on ADSB.lol — try AviationStack via worker
+          return tryAviationStack(code);
+        })
+        .catch(function(err) {
+          // ADSB.lol failed entirely — try AviationStack as fallback
+          return tryAviationStack(code);
+        });
+    }
+
+    function tryAviationStack(code) {
+      // Check if worker URL is configured
+      if (WORKER_URL.indexOf('YOUR_SUBDOMAIN') !== -1) {
+        spinner.classList.remove('visible');
+        showError('Flight "' + code + '" not found. Demo flights are always available: AA100, UA302, BA178, DL50');
+        return;
+      }
+
+      // Check if we've hit the monthly limit
+      if (apiUsage.aviationstack.used >= apiUsage.aviationstack.limit) {
+        spinner.classList.remove('visible');
+        showError('AviationStack monthly limit reached. Try a live callsign or demo flight.');
+        return;
+      }
+
+      fetch(WORKER_URL + '/?flight=' + encodeURIComponent(code))
+        .then(function(res) {
+          if (!res.ok) throw new Error('Worker error');
+          return res.json();
+        })
+        .then(function(json) {
+          spinner.classList.remove('visible');
+          recordApiCall('aviationstack');
+          var flights = json.data;
+          if (!flights || flights.length === 0) {
+            showError('Flight "' + code + '" not found. Demo flights are always available: AA100, UA302, BA178, DL50');
+            return;
+          }
+          displayScheduledFlight(flights[0]);
         })
         .catch(function(err) {
           spinner.classList.remove('visible');
-          showError('Could not reach flight data service. Please try again.');
+          showError('Flight "' + code + '" not found. Demo flights are always available: AA100, UA302, BA178, DL50');
         });
     }
 
@@ -1126,6 +1348,9 @@
       apiPanel.classList.remove('visible');
       document.getElementById('route-visual').classList.remove('hidden');
       document.getElementById('live-detail-grid').classList.remove('visible');
+      // Reset detail labels in case they were changed by scheduled flight display
+      var altLabel = document.querySelector('#fl-altitude').previousElementSibling;
+      if (altLabel) altLabel.textContent = 'Altitude';
       map.getPane('labelsPane').style.opacity = '0';
       map.setView([20, 0], 2, { duration: 0.5 });
       flightInput.value = '';
