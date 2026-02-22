@@ -1258,17 +1258,16 @@
     }
 
     function createPlaneIcon(heading) {
-      // ✈ emoji points upper-right (~315deg), offset so 0deg = north
-      var rot = typeof heading === 'number' ? 'transform:rotate(' + (heading - 315) + 'deg);' : '';
+      // SVG plane points north (up) by default; heading 0 = north
+      var rot = typeof heading === 'number' ? 'transform:rotate(' + heading + 'deg);' : '';
       return L.divIcon({
         className: '',
-        html: '<div style="position:relative;width:56px;height:56px;' + rot + '">' +
-          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">' +
-            '<div style="width:28px;height:28px;background:rgba(244,164,196,0.3);border-radius:50%;"></div>' +
-          '</div>' +
-          '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:48px;line-height:1;color:#f4a4c4;cursor:pointer;filter:drop-shadow(1px 2px 2px rgba(44,24,16,0.4));">&#9992;</div>' +
+        html: '<div style="width:32px;height:32px;' + rot + '">' +
+          '<svg viewBox="0 0 32 32" width="32" height="32" style="filter:drop-shadow(1px 2px 3px rgba(0,0,0,0.35));">' +
+            '<path d="M16 2 L14 12 L4 16 L14 15 L14 26 L11 28 L11 30 L16 28 L21 30 L21 28 L18 26 L18 15 L28 16 L18 12 Z" fill="#f4a4c4"/>' +
+          '</svg>' +
         '</div>',
-        iconSize: [56, 56], iconAnchor: [28, 28],
+        iconSize: [32, 32], iconAnchor: [16, 16],
       });
     }
 
@@ -1306,7 +1305,15 @@
         .bindTooltip(data.departure.iata, { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
       var arrM = L.marker(arr, { icon: createAirportIcon('arr') })
         .bindTooltip(data.arrival.iata, { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
-      var planeM = L.marker(planePos, { icon: createPlaneIcon() }).addTo(map);
+      // Calculate heading from arc direction
+      var demoHeading = null;
+      if (bestIdx < fullArc.length - 1) {
+        var nextPt = fullArc[bestIdx + 1];
+        var dLat = nextPt[0] - planePos[0];
+        var dLon = nextPt[1] - planePos[1];
+        demoHeading = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360;
+      }
+      var planeM = L.marker(planePos, { icon: createPlaneIcon(demoHeading) }).addTo(map);
       planeM.on('click', function() {
         infoPanel.classList.toggle('visible');
       });
