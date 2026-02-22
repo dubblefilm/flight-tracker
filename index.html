@@ -1168,17 +1168,18 @@
       markersList.forEach(m => map.removeLayer(m));
       markersList = [];
       liveTrackPlane = null;
+      liveTrackArc = null;
+      liveTrackTraveled = null;
     }
 
     function stopLiveTracking() {
       if (liveTrackInterval) { clearInterval(liveTrackInterval); liveTrackInterval = null; }
       liveTrackData = null;
-      liveTrackArc = null;
-      liveTrackTraveled = null;
     }
 
     function startLiveTracking(type, id, flightInfo) {
-      stopLiveTracking();
+      // Only stop the interval, preserve arc/traveled for snapping
+      if (liveTrackInterval) { clearInterval(liveTrackInterval); liveTrackInterval = null; }
       liveTrackData = { type: type, id: id, flightInfo: flightInfo || null };
 
       liveTrackInterval = setInterval(function() {
