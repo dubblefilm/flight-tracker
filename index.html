@@ -949,6 +949,9 @@
 
     let flightPath = null;
     let markersList = [];
+    let liveTrackInterval = null;
+    let liveTrackPlane = null;  // current plane marker for live updates
+    let liveTrackData = null;   // { type: 'callsign'|'hex', id: '...', flightInfo: {...} }
 
     // Draw graticule right away
     drawGraticule();
@@ -1158,9 +1161,68 @@
     }
 
     function clearMap() {
+      stopLiveTracking();
       if (flightPath) { map.removeLayer(flightPath); flightPath = null; }
       markersList.forEach(m => map.removeLayer(m));
       markersList = [];
+      liveTrackPlane = null;
+    }
+
+    function stopLiveTracking() {
+      if (liveTrackInterval) { clearInterval(liveTrackInterval); liveTrackInterval = null; }
+      liveTrackData = null;
+    }
+
+    function startLiveTracking(type, id, flightInfo) {
+      stopLiveTracking();
+      liveTrackData = { type: type, id: id, flightInfo: flightInfo || null };
+
+      liveTrackInterval = setInterval(function() {
+        var url;
+        if (type === 'hex') {
+          url = WORKER_URL + '/?source=adsb-hex&flight=' + encodeURIComponent(id);
+        } else {
+          url = WORKER_URL + '/?source=adsb&flight=' + encodeURIComponent(id);
+        }
+
+        fetch(url)
+          .then(function(res) { return res.ok ? res.json() : null; })
+          .then(function(json) {
+            if (!json) return;
+            var acList = json.ac;
+            if (!acList || acList.length === 0) return;
+            var ac = acList[0];
+            if (typeof ac.lat !== 'number' || typeof ac.lon !== 'number') return;
+
+            var newPos = [ac.lat, ac.lon];
+            var heading = typeof ac.track === 'number' ? ac.track : null;
+
+            // Update plane marker position
+            if (liveTrackPlane) {
+              liveTrackPlane.setLatLng(newPos);
+              liveTrackPlane.setIcon(createPlaneIcon(heading));
+            }
+
+            // Update live detail fields if visible
+            var altBaro = ac.alt_baro;
+            var gs = ac.gs;
+            var altEl = document.getElementById('fl-live-alt');
+            if (altEl) altEl.textContent = (typeof altBaro === 'number') ? altBaro.toLocaleString() + ' ft' : (altBaro === 'ground' ? 'Ground' : '--');
+            var spdEl = document.getElementById('fl-live-spd');
+            if (spdEl) spdEl.textContent = (typeof gs === 'number') ? Math.round(gs * 1.151) + ' mph' : '--';
+            var hdgEl = document.getElementById('fl-live-hdg');
+            if (hdgEl) hdgEl.textContent = (heading !== null) ? Math.round(heading) + '\u00B0' : '--';
+            var posEl = document.getElementById('fl-live-pos');
+            if (posEl) posEl.textContent = ac.lat.toFixed(2) + ', ' + ac.lon.toFixed(2);
+
+            // Also update speed in detail grid
+            var spdGrid = document.getElementById('fl-speed');
+            if (spdGrid) spdGrid.textContent = (typeof gs === 'number') ? Math.round(gs * 1.151) + ' mph' : spdGrid.textContent;
+            var altGrid = document.getElementById('fl-altitude');
+            if (altGrid && typeof altBaro === 'number') altGrid.textContent = altBaro.toLocaleString() + ' ft';
+          })
+          .catch(function() { /* silent fail on refresh */ });
+      }, 5000);
     }
 
     function generateArc(from, to, numPoints) {
@@ -1284,14 +1346,23 @@
       var lat = ac.lat;
       var lon = ac.lon;
       var heading = typeof ac.track === 'number' ? ac.track : null;
+      var callsign = (ac.flight || '').trim();
 
-      var planeM = L.marker([lat, lon], { icon: createPlaneIcon(heading) }).addTo(map);
+      var planeM = L.marker([lat, lon], { icon: createPlaneIcon(heading), zIndexOffset: 500 }).addTo(map);
       planeM.on('click', function() {
         infoPanel.classList.toggle('visible');
       });
       markersList.push(planeM);
+      liveTrackPlane = planeM;
 
       map.setView([lat, lon], 6, { duration: 0.8 });
+
+      // Start live tracking — prefer hex, fall back to callsign
+      if (ac.hex) {
+        startLiveTracking('hex', ac.hex);
+      } else if (callsign) {
+        startLiveTracking('callsign', callsign);
+      }
 
       // Hide route-visual, show live detail grid
       document.getElementById('route-visual').classList.add('hidden');
@@ -1405,6 +1476,7 @@
           var planeM = L.marker(planePos, { icon: createPlaneIcon(planeHeading), zIndexOffset: 500 }).addTo(map);
           planeM.on('click', function() { infoPanel.classList.toggle('visible'); });
           markersList.push(planeM);
+          liveTrackPlane = planeM;
 
           map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.15), { duration: 0.8 });
         } else {
@@ -1487,6 +1559,14 @@
       apiToggle.classList.add('visible');
       infoPanel.classList.add('visible');
       map.getPane('labelsPane').style.opacity = '1';
+
+      // Start live tracking if flight is active and has aircraft hex code
+      if (status === 'active' && liveTrackPlane) {
+        var hex = flight.aircraft && flight.aircraft.icao24;
+        if (hex) {
+          startLiveTracking('hex', hex);
+        }
+      }
     }
 
     function trackFlight(query) {
