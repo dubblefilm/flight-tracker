@@ -455,6 +455,36 @@
     }
     #error-toast.visible { display: block; }
 
+    .live-note {
+      margin-top: 8px;
+      font-size: 0.72rem;
+      color: #8a7a58;
+      font-style: italic;
+      max-width: 440px;
+      text-align: center;
+    }
+
+    .route-visual.hidden { display: none; }
+    .live-detail-grid { display: none; }
+    .live-detail-grid.visible {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      background: rgba(42,90,107,0.04);
+      border: 1px solid #c4b898;
+    }
+    .live-detail-grid .detail-item label {
+      display: block;
+      font-size: 0.58rem;
+      color: #8a7a58;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 1px;
+    }
+    .live-detail-grid .detail-item span { font-size: 0.88rem; font-weight: 700; color: #2c1810; }
+
     .spinner {
       display: none;
       width: 28px; height: 28px;
@@ -633,6 +663,7 @@
         </div>
         <div class="spinner" id="landing-spinner"></div>
         <p class="demo-hint">Try demonstration flights: <span>AA100</span>, <span>UA302</span>, <span>BA178</span>, <span>DL50</span></p>
+        <p class="live-note">Enter any callsign to track live &mdash; only flights currently in the air will appear</p>
       </div>
 
       <!-- Top Bar -->
@@ -653,7 +684,7 @@
             <span class="flight-status" id="fl-status">--</span>
           </div>
           <div id="fl-airline-row">--</div>
-          <div class="route-visual">
+          <div class="route-visual" id="route-visual">
             <div>
               <div class="airport-code" id="fl-dep-code">---</div>
               <div class="airport-city" id="fl-dep-city">--</div>
@@ -667,6 +698,14 @@
               <div class="airport-code" id="fl-arr-code">---</div>
               <div class="airport-city" id="fl-arr-city">--</div>
             </div>
+          </div>
+          <div class="live-detail-grid" id="live-detail-grid">
+            <div class="detail-item"><label>Altitude</label><span id="fl-live-alt">--</span></div>
+            <div class="detail-item"><label>Speed</label><span id="fl-live-spd">--</span></div>
+            <div class="detail-item"><label>Heading</label><span id="fl-live-hdg">--</span></div>
+            <div class="detail-item"><label>Aircraft</label><span id="fl-live-type">--</span></div>
+            <div class="detail-item"><label>Registration</label><span id="fl-live-reg">--</span></div>
+            <div class="detail-item"><label>Position</label><span id="fl-live-pos">--</span></div>
           </div>
           <div class="detail-grid">
             <div class="detail-item"><label>Departure</label><span id="fl-dep-time">--</span></div>
@@ -907,10 +946,11 @@
       });
     }
 
-    function createPlaneIcon() {
+    function createPlaneIcon(heading) {
+      var rot = typeof heading === 'number' ? 'transform:rotate(' + heading + 'deg);' : '';
       return L.divIcon({
         className: '',
-        html: '<div style="font-size:40px;line-height:1;width:40px;text-align:center;color:#e08840;cursor:pointer;filter:drop-shadow(1px 1px 1px rgba(44,24,16,0.4));">&#9992;</div>',
+        html: '<div style="font-size:40px;line-height:1;width:40px;text-align:center;color:#e08840;cursor:pointer;filter:drop-shadow(1px 1px 1px rgba(44,24,16,0.4));' + rot + '">&#9992;</div>',
         iconSize: [40, 40], iconAnchor: [22, 24],
       });
     }
@@ -957,6 +997,10 @@
 
       map.fitBounds(L.latLngBounds([dep, arr, cur]).pad(0.15), { duration: 0.8 });
 
+      // Ensure demo layout: show route-visual, hide live grid
+      document.getElementById('route-visual').classList.remove('hidden');
+      document.getElementById('live-detail-grid').classList.remove('visible');
+
       // Fill panel data (but don't show it yet — tap plane to reveal)
       document.getElementById('fl-number').textContent = data.flight;
       var s = document.getElementById('fl-status');
@@ -983,16 +1027,94 @@
       recordApiCall('opensky');
     }
 
+    function displayLiveFlight(ac) {
+      clearMap();
+
+      var lat = ac.lat;
+      var lon = ac.lon;
+      var heading = typeof ac.track === 'number' ? ac.track : null;
+
+      var planeM = L.marker([lat, lon], { icon: createPlaneIcon(heading) }).addTo(map);
+      planeM.on('click', function() {
+        infoPanel.classList.toggle('visible');
+      });
+      markersList.push(planeM);
+
+      map.setView([lat, lon], 6, { duration: 0.8 });
+
+      // Hide route-visual, show live detail grid
+      document.getElementById('route-visual').classList.add('hidden');
+      document.getElementById('live-detail-grid').classList.add('visible');
+
+      // Flight header
+      var callsign = (ac.flight || '').trim();
+      document.getElementById('fl-number').textContent = callsign || 'N/A';
+      var s = document.getElementById('fl-status');
+      s.textContent = 'live';
+      s.className = 'flight-status status-active';
+      document.getElementById('fl-airline-row').textContent = 'Live tracking via ADS-B';
+
+      // Live detail fields
+      var altBaro = ac.alt_baro;
+      document.getElementById('fl-live-alt').textContent = (typeof altBaro === 'number') ? altBaro.toLocaleString() + ' ft' : (altBaro === 'ground' ? 'Ground' : '--');
+
+      var gs = ac.gs;
+      document.getElementById('fl-live-spd').textContent = (typeof gs === 'number') ? Math.round(gs * 1.151) + ' mph' : '--';
+
+      document.getElementById('fl-live-hdg').textContent = (heading !== null) ? Math.round(heading) + '\u00B0' : '--';
+      document.getElementById('fl-live-type').textContent = ac.t || '--';
+      document.getElementById('fl-live-reg').textContent = ac.r || '--';
+      document.getElementById('fl-live-pos').textContent = lat.toFixed(2) + ', ' + lon.toFixed(2);
+
+      // Also fill the standard detail grid for consistency
+      document.getElementById('fl-aircraft').textContent = ac.t || '--';
+      document.getElementById('fl-altitude').textContent = (typeof altBaro === 'number') ? altBaro.toLocaleString() + ' ft' : '--';
+      document.getElementById('fl-speed').textContent = (typeof gs === 'number') ? Math.round(gs * 1.151) + ' mph' : '--';
+      document.getElementById('fl-duration').textContent = '--';
+      document.getElementById('fl-dep-time').textContent = '--';
+      document.getElementById('fl-arr-time').textContent = '--';
+
+      landing.classList.add('hidden');
+      topbar.classList.add('visible');
+      apiToggle.classList.add('visible');
+      map.getPane('labelsPane').style.opacity = '1';
+    }
+
     function trackFlight(query) {
       const code = query.trim().toUpperCase().replace(/\s+/g, '');
       if (!code) return;
+
+      // Check demo flights first
+      const demo = DEMO_FLIGHTS[code];
+      if (demo) {
+        spinner.classList.add('visible');
+        setTimeout(() => {
+          spinner.classList.remove('visible');
+          displayFlight(demo);
+        }, 800);
+        return;
+      }
+
+      // Live lookup via ADSB.lol
       spinner.classList.add('visible');
-      setTimeout(() => {
-        spinner.classList.remove('visible');
-        const data = DEMO_FLIGHTS[code];
-        if (data) { displayFlight(data); }
-        else { showError('Flight "' + code + '" not found. Try AA100, UA302, BA178, or DL50.'); }
-      }, 800);
+      fetch('https://api.adsb.lol/v2/callsign/' + encodeURIComponent(code))
+        .then(function(res) {
+          if (!res.ok) throw new Error('API error');
+          return res.json();
+        })
+        .then(function(json) {
+          spinner.classList.remove('visible');
+          var acList = json.ac;
+          if (!acList || acList.length === 0) {
+            showError('Flight \u201C' + code + '\u201D not found \u2014 only flights currently in the air can be tracked.');
+            return;
+          }
+          displayLiveFlight(acList[0]);
+        })
+        .catch(function(err) {
+          spinner.classList.remove('visible');
+          showError('Could not reach flight data service. Please try again.');
+        });
     }
 
     function goBack() {
@@ -1002,6 +1124,8 @@
       infoPanel.classList.remove('visible');
       apiToggle.classList.remove('visible');
       apiPanel.classList.remove('visible');
+      document.getElementById('route-visual').classList.remove('hidden');
+      document.getElementById('live-detail-grid').classList.remove('visible');
       map.getPane('labelsPane').style.opacity = '0';
       map.setView([20, 0], 2, { duration: 0.5 });
       flightInput.value = '';
