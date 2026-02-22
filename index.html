@@ -952,6 +952,8 @@
     let liveTrackInterval = null;
     let liveTrackPlane = null;  // current plane marker for live updates
     let liveTrackData = null;   // { type: 'callsign'|'hex', id: '...', flightInfo: {...} }
+    let liveTrackArc = null;    // stored arc points for snapping plane to route
+    let liveTrackTraveled = null; // traveled polyline layer for live updates
 
     // Draw graticule right away
     drawGraticule();
@@ -1171,6 +1173,8 @@
     function stopLiveTracking() {
       if (liveTrackInterval) { clearInterval(liveTrackInterval); liveTrackInterval = null; }
       liveTrackData = null;
+      liveTrackArc = null;
+      liveTrackTraveled = null;
     }
 
     function startLiveTracking(type, id, flightInfo) {
@@ -1197,8 +1201,29 @@
             var newPos = [ac.lat, ac.lon];
             var heading = typeof ac.track === 'number' ? ac.track : null;
 
-            // Update plane marker position
-            if (liveTrackPlane) {
+            // Snap plane to arc if available
+            if (liveTrackPlane && liveTrackArc) {
+              var bestIdx = 0;
+              var bestDist = Infinity;
+              for (var i = 0; i < liveTrackArc.length; i++) {
+                var dLat = liveTrackArc[i][0] - newPos[0];
+                var dLon = liveTrackArc[i][1] - newPos[1];
+                var dist = dLat * dLat + dLon * dLon;
+                if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+              }
+              var snappedPos = liveTrackArc[bestIdx];
+              liveTrackPlane.setLatLng(snappedPos);
+              // Calculate heading from arc if not provided
+              if (heading === null && bestIdx < liveTrackArc.length - 1) {
+                var nxt = liveTrackArc[bestIdx + 1];
+                heading = (Math.atan2(nxt[1] - snappedPos[1], nxt[0] - snappedPos[0]) * 180 / Math.PI + 360) % 360;
+              }
+              liveTrackPlane.setIcon(createPlaneIcon(heading));
+              // Update traveled line
+              if (liveTrackTraveled) {
+                liveTrackTraveled.setLatLngs(liveTrackArc.slice(0, bestIdx + 1));
+              }
+            } else if (liveTrackPlane) {
               liveTrackPlane.setLatLng(newPos);
               liveTrackPlane.setIcon(createPlaneIcon(heading));
             }
@@ -1488,6 +1513,8 @@
 
           var traveled = L.polyline(traveledArc, { color: '#a8c8e8', weight: 3.5, opacity: 0.85 }).addTo(map);
           markersList.push(traveled);
+          liveTrackTraveled = traveled;
+          liveTrackArc = fullArc;
 
           var planeM = L.marker(planePos, { icon: createPlaneIcon(planeHeading), zIndexOffset: 500 }).addTo(map);
           planeM.on('click', function() { infoPanel.classList.toggle('visible'); });
