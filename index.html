@@ -1483,11 +1483,13 @@
           map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.2), { duration: 0.8 });
         }
 
-        // Always add info marker at midpoint for easy access to details
-        var midPt = fullArc[50];
-        var infoM = L.marker(midPt, { icon: createInfoIcon(), zIndexOffset: 400 }).addTo(map);
-        infoM.on('click', function() { infoPanel.classList.toggle('visible'); });
-        markersList.push(infoM);
+        // Add info marker only for non-active flights (scheduled/landed)
+        if (status !== 'active') {
+          var midPt = fullArc[50];
+          var infoM = L.marker(midPt, { icon: createInfoIcon(), zIndexOffset: 400 }).addTo(map);
+          infoM.on('click', function() { infoPanel.classList.toggle('visible'); });
+          markersList.push(infoM);
+        }
       } else if (hasLive) {
         // No airport coords but have live position — show plane marker
         var planeM = L.marker([live.latitude, live.longitude], { icon: createPlaneIcon(typeof live.direction === 'number' ? live.direction : null) }).addTo(map);
