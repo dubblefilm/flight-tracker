@@ -71,15 +71,14 @@
       flex: 1;
       position: relative;
       background: transparent;
-      padding: 10px;
+      padding: 0;
       overflow: hidden;
     }
 
     #map {
       position: absolute;
-      top: 10px; left: 10px; right: 10px; bottom: 10px;
+      top: 0; left: 0; right: 0; bottom: 0;
       z-index: 1;
-      border: 1.5px solid #a09070;
     }
 
     /* ── Landing ── */
@@ -531,7 +530,7 @@
     /* Tick marks */
     .tick-overlay { position: absolute; z-index: 5; pointer-events: none; }
     .tick-overlay.top, .tick-overlay.bottom {
-      left: 10px; right: 10px; height: 10px;
+      left: 0; right: 0; height: 10px;
       display: flex; justify-content: space-between; align-items: flex-start;
     }
     .tick-overlay.top { top: 0; }
@@ -540,8 +539,8 @@
       top: 0; bottom: 0; width: 10px;
       display: flex; flex-direction: column; justify-content: space-between;
     }
-    .tick-overlay.left { left: 10px; }
-    .tick-overlay.right { right: 10px; align-items: flex-end; }
+    .tick-overlay.left { left: 0; }
+    .tick-overlay.right { right: 0; align-items: flex-end; }
     .tick { width: 1px; height: 8px; background: #5a4a30; opacity: 0.3; }
     .tick.h { width: 8px; height: 1px; }
 
@@ -552,13 +551,13 @@
       .string { height: 20px; top: -20px; }
       .string::before { width: 6px; height: 6px; }
 
-      .map-border { padding: 4px; }
-      #map { top: 4px; left: 4px; right: 4px; bottom: 4px; }
+      .map-border { padding: 0; }
+      #map { top: 0; left: 0; right: 0; bottom: 0; }
 
-      .tick-overlay.top, .tick-overlay.bottom { left: 4px; right: 4px; height: 6px; }
+      .tick-overlay.top, .tick-overlay.bottom { left: 0; right: 0; height: 6px; }
       .tick-overlay.left, .tick-overlay.right { width: 6px; }
-      .tick-overlay.left { left: 4px; }
-      .tick-overlay.right { right: 4px; }
+      .tick-overlay.left { left: 0; }
+      .tick-overlay.right { right: 0; }
       .tick { height: 5px; }
       .tick.h { width: 5px; }
 
@@ -579,16 +578,16 @@
       .demo-hint { font-size: 0.68rem; padding: 0 16px; text-align: center; }
 
       /* Top bar */
-      #topbar { padding: 6px 8px; gap: 6px; top: 4px; left: 4px; right: 4px; }
+      #topbar { padding: 6px 8px; gap: 6px; top: 0; left: 0; right: 0; }
       #topbar .back-btn { padding: 5px 10px; font-size: 0.72rem; }
       #topbar .mini-search input { width: 100px; padding: 5px 8px; font-size: 0.72rem; }
       #topbar .mini-search button { padding: 5px 10px; font-size: 0.68rem; }
 
       /* Flight info panel — full width bottom sheet */
       #info-panel {
-        left: 4px;
-        right: 4px;
-        bottom: 4px;
+        left: 0;
+        right: 0;
+        bottom: 0;
         width: auto;
         max-width: none;
         max-height: 55vh;
