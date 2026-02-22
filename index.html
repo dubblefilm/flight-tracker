@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Libre Baskerville', 'Georgia', 'Times New Roman', serif;
+      background: #c8c0ae;
+      color: #2c1810;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Wall map frame ── */
+    #map-frame {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .wood-bar {
+      height: 28px;
+      flex-shrink: 0;
+      background:
+        linear-gradient(180deg,
+          #c4986c 0%, #b8895e 8%, #d4a878 15%, #c89a6a 22%,
+          #a87848 40%, #c4986c 50%,
+          #b08558 60%, #d4a878 72%, #c09264 80%,
+          #a87848 90%, #8a6838 100%);
+      border-bottom: 2px solid #6b4a2a;
+      box-shadow: 0 3px 8px rgba(44,24,16,0.3);
+      position: relative;
+      z-index: 10;
+    }
+    .wood-bar.bottom {
+      border-bottom: none;
+      border-top: 2px solid #6b4a2a;
+      box-shadow: 0 -2px 8px rgba(44,24,16,0.25);
+      height: 24px;
+    }
+    .string {
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 2px;
+      height: 30px;
+      background: linear-gradient(180deg, #a0906a, #8a7a58);
+      z-index: 11;
+    }
+    .string::before {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #8a7a58;
+    }
+
+    .map-border {
+      flex: 1;
+      position: relative;
+      background: transparent;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    #map {
+      position: absolute;
+      top: 10px; left: 10px; right: 10px; bottom: 10px;
+      z-index: 1;
+      border: 1.5px solid #a09070;
+    }
+
+    /* ── Landing ── */
+    #landing {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      background: rgba(242, 235, 212, 0.55);
+      transition: opacity 0.6s, visibility 0.6s;
+    }
+    #landing.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .cartouche {
+      text-align: center;
+      margin-bottom: 36px;
+      padding: 28px 48px;
+      border: 2px solid #2a5a6b;
+      position: relative;
+    }
+    .cartouche::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border: 1px solid #2a5a6b;
+      pointer-events: none;
+    }
+    .cartouche .small-label {
+      font-family: 'Libre Baskerville', Georgia, serif;
+      font-size: 0.7rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #2a5a6b;
+      margin-bottom: 4px;
+    }
+    .cartouche h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 2.6rem;
+      font-weight: 900;
+      letter-spacing: 6px;
+      color: #2c1810;
+      line-height: 1.1;
+    }
+    .cartouche .map-subtitle {
+      font-family: 'Libre Baskerville', Georgia, serif;
+      font-size: 0.72rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #5a4a30;
+      margin-top: 6px;
+    }
+    .cartouche .projection {
+      font-family: 'Libre Baskerville', Georgia, serif;
+      font-size: 0.65rem;
+      font-style: italic;
+      color: #8a7a58;
+      margin-top: 8px;
+    }
+
+    .search-box {
+      display: flex;
+      width: 440px;
+      max-width: 90vw;
+      overflow: hidden;
+      border: 2px solid #2a5a6b;
+    }
+    .search-box input {
+      flex: 1;
+      padding: 14px 18px;
+      font-family: 'Libre Baskerville', Georgia, serif;
+      font-size: 1.05rem;
+      border: none;
+      background: #faf8f0;
+      color: #2c1810;
+      outline: none;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+    .search-box input::placeholder {
+      text-transform: none;
+      letter-spacing: 0;
+      color: #a09878;
+      font-style: italic;
+    }
+    .search-box input:focus { background: #fff; }
+    .search-box button {
+      padding: 14px 26px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border: none;
+      border-left: 2px solid #2a5a6b;
+      background: #2a5a6b;
+      color: #f2ebd4;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .search-box button:hover { background: #3a7a8a; }
+
+    .demo-hint {
+      margin-top: 20px;
+      font-size: 0.8rem;
+      color: #8a7a58;
+      font-style: italic;
+    }
+    .demo-hint span {
+      color: #2a5a6b;
+      font-weight: 700;
+      font-style: normal;
+      border-bottom: 1px solid #2a5a6b;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      display: none;
+      position: absolute;
+      top: 10px; left: 10px; right: 10px;
+      z-index: 900;
+      padding: 8px 12px;
+      align-items: center;
+      gap: 10px;
+    }
+    #topbar.visible { display: flex; }
+
+    #topbar .back-btn {
+      font-family: 'Libre Baskerville', Georgia, serif;
+      background: #f2ebd4;
+      border: 1.5px solid #2a5a6b;
+      color: #2a5a6b;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: background 0.2s;
+    }
+    #topbar .back-btn:hover { background: #e8dfca; }
+
+    #topbar .mini-search {
+      display: flex;
+      overflow: hidden;
+      border: 1.5px solid #2a5a6b;
+    }
+    #topbar .mini-search input {
+      font-family: 'Libre Baskerville', Georgia, serif;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      background: #faf8f0;
+      border: none;
+      color: #2c1810;
+      outline: none;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      width: 140px;
+    }
+    #topbar .mini-search button {
+      font-family: 'Playfair Display', Georgia, serif;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: #2a5a6b;
+      border: none;
+      color: #f2ebd4;
+      cursor: pointer;
+    }
+
+    /* ── Flight info panel ── */
+    #info-panel {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 900;
+      background: #f2ebd4;
+      border: 2px solid #2a5a6b;
+      width: 340px;
+      max-width: calc(100vw - 48px);
+      box-shadow: 2px 2px 0 rgba(44,24,16,0.08);
+    }
+    #info-panel::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border: 1px solid rgba(42,90,107,0.3);
+      pointer-events: none;
+      z-index: 1;
+    }
+    #info-panel.visible { display: block; }
+
+    .panel-title {
+      background: #2a5a6b;
+      color: #f2ebd4;
+      padding: 6px 16px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .panel-body { padding: 16px 18px; position: relative; z-index: 2; }
+
+    .flight-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #c4b898;
+    }
+    .flight-number {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: #2c1810;
+    }
+    .flight-status {
+      padding: 2px 8px;
+      font-family: 'Libre Baskerville', Georgia, serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      border: 1.5px solid;
+    }
+    .status-active { background: rgba(42,90,60,0.08); color: #2a5a3c; border-color: #2a5a3c; }
+    .status-landed { background: rgba(42,60,107,0.08); color: #2a3c6b; border-color: #2a3c6b; }
+    .status-scheduled { background: rgba(139,105,20,0.08); color: #8b6914; border-color: #8b6914; }
+
+    #fl-airline-row {
+      font-size: 0.82rem;
+      color: #7a6a48;
+      font-style: italic;
+      margin-bottom: 12px;
+    }
+
+    .route-visual {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0;
+      padding: 10px 12px;
+      background: rgba(42,90,107,0.04);
+      border: 1px solid #c4b898;
+    }
+    .airport-code {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.2rem;
+      font-weight: 900;
+      color: #2c1810;
+    }
+    .airport-city { font-size: 0.68rem; color: #7a6a48; font-style: italic; }
+    .route-line { flex: 1; display: flex; align-items: center; gap: 4px; }
+    .route-line .line { flex: 1; height: 1.5px; background: #8b2020; }
+    .route-line .plane-icon { font-size: 1rem; color: #8b2020; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #c4b898;
+    }
+    .detail-item label {
+      display: block;
+      font-size: 0.58rem;
+      color: #8a7a58;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 1px;
+    }
+    .detail-item span { font-size: 0.88rem; font-weight: 700; color: #2c1810; }
+
+    /* ── API limits toggle button + panel ── */
+    #api-toggle {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 900;
+      font-family: 'Libre Baskerville', Georgia, serif;
+      background: #f2ebd4;
+      border: 2px solid #2a5a6b;
+      color: #2a5a6b;
+      padding: 6px 14px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 rgba(44,24,16,0.08);
+      transition: background 0.2s;
+    }
+    #api-toggle:hover { background: #e8dfca; }
+    #api-toggle.visible { display: block; }
+
+    #api-panel {
+      display: none;
+      position: absolute;
+      bottom: 52px;
+      right: 20px;
+      z-index: 900;
+      background: #f2ebd4;
+      border: 2px solid #2a5a6b;
+      width: 240px;
+      box-shadow: 2px 2px 0 rgba(44,24,16,0.08);
+      animation: apiFadeIn 0.2s ease;
+    }
+    @keyframes apiFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    #api-panel::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border: 1px solid rgba(42,90,107,0.3);
+      pointer-events: none;
+      z-index: 1;
+    }
+    #api-panel.visible { display: block; }
+
+    .api-panel-body { padding: 12px 14px; position: relative; z-index: 2; }
+
+    .api-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #ddd5c0;
+    }
+    .api-row:last-child { border-bottom: none; }
+    .api-name {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #2c1810;
+      letter-spacing: 0.5px;
+    }
+    .api-limit {
+      font-size: 0.65rem;
+      color: #5a4a30;
+      text-align: right;
+    }
+    .api-bar {
+      width: 100%;
+      height: 4px;
+      background: #ddd5c0;
+      margin-top: 4px;
+    }
+    .api-bar-fill {
+      height: 100%;
+      transition: width 0.3s;
+    }
+    .api-bar-fill.green { background: #4a8a5e; }
+    .api-bar-fill.yellow { background: #b8961e; }
+    .api-bar-fill.blue { background: #2a5a6b; }
+
+    /* ── Error toast ── */
+    #error-toast {
+      display: none;
+      position: absolute;
+      top: 50px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 1100;
+      font-family: 'Libre Baskerville', Georgia, serif;
+      background: #f2ebd4;
+      color: #8b2020;
+      padding: 10px 22px;
+      border: 2px solid #8b2020;
+      font-size: 0.85rem;
+    }
+    #error-toast.visible { display: block; }
+
+    .spinner {
+      display: none;
+      width: 28px; height: 28px;
+      border: 2px solid #c4b898;
+      border-top-color: #2a5a6b;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 20px auto 0;
+    }
+    .spinner.visible { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Leaflet ── */
+    .leaflet-container { background: #4a98b4 !important; }
+    .leaflet-control-zoom a {
+      font-family: 'Playfair Display', Georgia, serif !important;
+      background: #f2ebd4 !important;
+      color: #2a5a6b !important;
+      border-color: #2a5a6b !important;
+      border-radius: 0 !important;
+      width: 28px !important; height: 28px !important;
+      line-height: 26px !important; font-size: 16px !important;
+    }
+    .leaflet-control-zoom a:hover { background: #e8dfca !important; }
+    .leaflet-control-zoom {
+      border: 1.5px solid #2a5a6b !important;
+      border-radius: 0 !important;
+      box-shadow: 1px 1px 0 rgba(44,24,16,0.1) !important;
+    }
+    .leaflet-control-zoom-in { border-bottom: 1px solid #a09878 !important; }
+
+    /* Vintage tint — boost saturation so ocean reads bluer against land */
+    .leaflet-tile-pane {
+      filter: sepia(0.15) saturate(1.8) contrast(1.1) brightness(0.97);
+    }
+    /* Keep labels crisp — no filter */
+    .leaflet-labelsPane-pane {
+      pointer-events: none;
+      filter: none !important;
+    }
+
+    /* Tick marks */
+    .tick-overlay { position: absolute; z-index: 5; pointer-events: none; }
+    .tick-overlay.top, .tick-overlay.bottom {
+      left: 10px; right: 10px; height: 10px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .tick-overlay.top { top: 0; }
+    .tick-overlay.bottom { bottom: 0; align-items: flex-end; }
+    .tick-overlay.left, .tick-overlay.right {
+      top: 0; bottom: 0; width: 10px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .tick-overlay.left { left: 10px; }
+    .tick-overlay.right { right: 10px; align-items: flex-end; }
+    .tick { width: 1px; height: 8px; background: #5a4a30; opacity: 0.3; }
+    .tick.h { width: 8px; height: 1px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .wood-bar { height: 18px; }
+      .wood-bar.bottom { height: 14px; }
+      .string { height: 20px; top: -20px; }
+      .string::before { width: 6px; height: 6px; }
+
+      .map-border { padding: 4px; }
+      #map { top: 4px; left: 4px; right: 4px; bottom: 4px; }
+
+      .tick-overlay.top, .tick-overlay.bottom { left: 4px; right: 4px; height: 6px; }
+      .tick-overlay.left, .tick-overlay.right { width: 6px; }
+      .tick-overlay.left { left: 4px; }
+      .tick-overlay.right { right: 4px; }
+      .tick { height: 5px; }
+      .tick.h { width: 5px; }
+
+      /* Landing */
+      .cartouche {
+        margin-bottom: 20px;
+        padding: 16px 20px;
+      }
+      .cartouche .small-label { font-size: 0.55rem; letter-spacing: 2px; }
+      .cartouche h1 { font-size: 1.5rem; letter-spacing: 3px; }
+      .cartouche .map-subtitle { font-size: 0.6rem; letter-spacing: 1.5px; }
+      .cartouche .projection { font-size: 0.55rem; }
+
+      .search-box { width: 100%; max-width: 90vw; }
+      .search-box input { padding: 10px 12px; font-size: 0.9rem; letter-spacing: 2px; }
+      .search-box button { padding: 10px 16px; font-size: 0.8rem; }
+
+      .demo-hint { font-size: 0.68rem; padding: 0 16px; text-align: center; }
+
+      /* Top bar */
+      #topbar { padding: 6px 8px; gap: 6px; top: 4px; left: 4px; right: 4px; }
+      #topbar .back-btn { padding: 5px 10px; font-size: 0.72rem; }
+      #topbar .mini-search input { width: 100px; padding: 5px 8px; font-size: 0.72rem; }
+      #topbar .mini-search button { padding: 5px 10px; font-size: 0.68rem; }
+
+      /* Flight info panel — full width bottom sheet */
+      #info-panel {
+        left: 4px;
+        right: 4px;
+        bottom: 4px;
+        width: auto;
+        max-width: none;
+        max-height: 55vh;
+        overflow-y: auto;
+      }
+      .panel-body { padding: 12px 14px; }
+      .flight-number { font-size: 1.3rem; }
+      .flight-status { font-size: 0.58rem; }
+      #fl-airline-row { font-size: 0.75rem; }
+      .airport-code { font-size: 1rem; }
+      .route-visual { padding: 8px 10px; gap: 8px; }
+      .detail-grid { gap: 6px; }
+      .detail-item label { font-size: 0.52rem; }
+      .detail-item span { font-size: 0.78rem; }
+
+      /* API toggle + panel — move to top-left on mobile to avoid info panel overlap */
+      #api-toggle { bottom: auto; top: 50px; right: auto; left: 10px; padding: 5px 10px; font-size: 0.65rem; }
+      #api-panel { bottom: auto; top: 78px; right: auto; left: 10px; width: 210px; }
+      .api-name { font-size: 0.62rem; }
+      .api-limit { font-size: 0.58rem; }
+
+      /* Error toast */
+      #error-toast { font-size: 0.75rem; padding: 8px 16px; top: 40px; max-width: 90vw; text-align: center; }
+    }
+
+    @media (max-width: 400px) {
+      .cartouche { padding: 12px 14px; margin-bottom: 14px; }
+      .cartouche h1 { font-size: 1.2rem; letter-spacing: 2px; }
+      .cartouche .small-label { font-size: 0.48rem; }
+
+      .search-box input { padding: 8px 10px; font-size: 0.8rem; }
+      .search-box button { padding: 8px 12px; font-size: 0.72rem; letter-spacing: 1px; }
+
+      #topbar .mini-search input { width: 80px; }
+
+      .detail-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+
+      #api-panel { width: 180px; }
+    }
+
+    /* Landscape phones — reduce vertical usage */
+    @media (max-height: 500px) {
+      .cartouche { margin-bottom: 12px; padding: 10px 20px; }
+      .cartouche h1 { font-size: 1.3rem; }
+      .demo-hint { margin-top: 10px; }
+      .spinner { margin: 10px auto 0; }
+
+      #info-panel { max-height: 70vh; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map-frame">
+    <div class="wood-bar"><div class="string"></div></div>
+    <div class="map-border">
+      <div id="map"></div>
+      <div class="tick-overlay top" id="ticks-top"></div>
+      <div class="tick-overlay bottom" id="ticks-bottom"></div>
+      <div class="tick-overlay left" id="ticks-left"></div>
+      <div class="tick-overlay right" id="ticks-right"></div>
+
+      <!-- Landing -->
+      <div id="landing">
+        <div class="cartouche">
+          <div class="small-label">Standard Aeronautical</div>
+          <h1>FLIGHT TRACKER</h1>
+          <div class="map-subtitle">Chart of the World</div>
+          <div class="projection">on Mercator's Projection</div>
+        </div>
+        <div class="search-box">
+          <input type="text" id="flight-input" placeholder="e.g. AA100, UA302, BA178" autofocus />
+          <button id="search-btn">Track</button>
+        </div>
+        <div class="spinner" id="landing-spinner"></div>
+        <p class="demo-hint">Try demonstration flights: <span>AA100</span>, <span>UA302</span>, <span>BA178</span>, <span>DL50</span></p>
+      </div>
+
+      <!-- Top Bar -->
+      <div id="topbar">
+        <button class="back-btn" id="back-btn">&larr; Return</button>
+        <div class="mini-search">
+          <input type="text" id="mini-input" placeholder="Flight No." />
+          <button id="mini-search-btn">Track</button>
+        </div>
+      </div>
+
+      <!-- Flight Info -->
+      <div id="info-panel">
+        <div class="panel-title">Flight Intelligence</div>
+        <div class="panel-body">
+          <div class="flight-header">
+            <span class="flight-number" id="fl-number">--</span>
+            <span class="flight-status" id="fl-status">--</span>
+          </div>
+          <div id="fl-airline-row">--</div>
+          <div class="route-visual">
+            <div>
+              <div class="airport-code" id="fl-dep-code">---</div>
+              <div class="airport-city" id="fl-dep-city">--</div>
+            </div>
+            <div class="route-line">
+              <div class="line"></div>
+              <div class="plane-icon">&#9992;</div>
+              <div class="line"></div>
+            </div>
+            <div style="text-align:right">
+              <div class="airport-code" id="fl-arr-code">---</div>
+              <div class="airport-city" id="fl-arr-city">--</div>
+            </div>
+          </div>
+          <div class="detail-grid">
+            <div class="detail-item"><label>Departure</label><span id="fl-dep-time">--</span></div>
+            <div class="detail-item"><label>Arrival</label><span id="fl-arr-time">--</span></div>
+            <div class="detail-item"><label>Aircraft</label><span id="fl-aircraft">--</span></div>
+            <div class="detail-item"><label>Altitude</label><span id="fl-altitude">--</span></div>
+            <div class="detail-item"><label>Speed</label><span id="fl-speed">--</span></div>
+            <div class="detail-item"><label>Duration</label><span id="fl-duration">--</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- API Toggle Button -->
+      <button id="api-toggle">API Allowances &#9662;</button>
+
+      <!-- API Limits Panel -->
+      <div id="api-panel">
+        <div class="panel-title">API Allowances</div>
+        <div class="api-panel-body">
+          <div class="api-row">
+            <div>
+              <div class="api-name">AviationStack</div>
+              <div class="api-limit"><span id="avstack-used">0</span> / 100 req · monthly</div>
+              <div class="api-bar"><div class="api-bar-fill green" id="avstack-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="api-row">
+            <div>
+              <div class="api-name">OpenSky Network</div>
+              <div class="api-limit"><span id="opensky-used">0</span> / 400 credits · daily</div>
+              <div class="api-bar"><div class="api-bar-fill blue" id="opensky-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="api-row">
+            <div>
+              <div class="api-name">ADSB.lol</div>
+              <div class="api-limit">Unlimited · no key needed</div>
+              <div class="api-bar"><div class="api-bar-fill yellow" style="width:100%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Toast -->
+      <div id="error-toast"></div>
+
+    </div><!-- end map-border -->
+    <div class="wood-bar bottom"></div>
+  </div><!-- end map-frame -->
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ── Tick marks ──
+    (function generateTicks() {
+      ['ticks-top','ticks-bottom'].forEach(id => {
+        const el = document.getElementById(id);
+        for (let i = 0; i < 24; i++) { const t = document.createElement('div'); t.className='tick'; el.appendChild(t); }
+      });
+      ['ticks-left','ticks-right'].forEach(id => {
+        const el = document.getElementById(id);
+        for (let i = 0; i < 14; i++) { const t = document.createElement('div'); t.className='tick h'; el.appendChild(t); }
+      });
+    })();
+
+    // ── World bounds — lock to one copy of the world ──
+    const worldBounds = L.latLngBounds([[-85, -180], [85, 180]]);
+
+    // ── Map ──
+    const map = L.map('map', {
+      center: [20, 0],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 10,
+      maxBounds: worldBounds,
+      maxBoundsViscosity: 1.0,
+      zoomControl: false,
+      attributionControl: false,
+      worldCopyJump: false,
+    });
+
+    // ── Base tile layer — full Voyager (countries, lakes, rivers, terrain, borders) ──
+    // CSS filter applied via .leaflet-tile-pane to get the vintage tinted look
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+      { maxZoom: 18, noWrap: true, bounds: worldBounds }
+    ).addTo(map);
+
+    // ── Labels pane — above everything, hidden on landing ──
+    map.createPane('labelsPane');
+    map.getPane('labelsPane').style.zIndex = 650;
+    map.getPane('labelsPane').style.pointerEvents = 'none';
+    map.getPane('labelsPane').style.opacity = '0';
+
+    // Ensure tooltips render above labels
+    map.getPane('tooltipPane').style.zIndex = 700;
+
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png',
+      { maxZoom: 18, pane: 'labelsPane', noWrap: true, bounds: worldBounds }
+    ).addTo(map);
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    let flightPath = null;
+    let markersList = [];
+
+    // Draw graticule right away
+    drawGraticule();
+
+    // ── Graticule ──
+    function drawGraticule() {
+      var base = { color: '#4a6a7a', weight: 0.5, opacity: 0.25, fill: false, interactive: false, renderer: L.canvas() };
+
+      function latLine(lat, opts) {
+        var pts = [];
+        for (var lng = -180; lng <= 180; lng += 2) pts.push([lat, lng]);
+        L.polyline(pts, opts).addTo(map);
+      }
+      function lonLine(lng) {
+        var pts = [];
+        for (var lat = -80; lat <= 80; lat += 2) pts.push([lat, lng]);
+        L.polyline(pts, base).addTo(map);
+      }
+
+      // Longitude every 30 deg
+      for (var lng = -180; lng <= 180; lng += 30) lonLine(lng);
+
+      // Latitude every 30 deg (skip 0 — drawn separately as equator)
+      for (var lat = -60; lat <= 80; lat += 30) {
+        if (lat !== 0) latLine(lat, base);
+      }
+
+      // Equator — prominent
+      latLine(0, { color: '#3a5a6a', weight: 1, opacity: 0.45, fill: false, interactive: false, renderer: L.canvas() });
+
+      // Tropics + Arctic/Antarctic circles — subtle dashed
+      [23.436, -23.436, 66.564, -66.564].forEach(function(lat) {
+        latLine(lat, { color: '#4a6a7a', weight: 0.5, opacity: 0.2, dashArray: '4 4', fill: false, interactive: false, renderer: L.canvas() });
+      });
+    }
+
+    // ── API usage tracking ──
+    const apiUsage = {
+      aviationstack: { used: 0, limit: 100 },
+      opensky:       { used: 0, limit: 400 },
+    };
+
+    function updateApiCounters() {
+      document.getElementById('avstack-used').textContent = apiUsage.aviationstack.used;
+      document.getElementById('avstack-bar').style.width = ((apiUsage.aviationstack.used / apiUsage.aviationstack.limit) * 100) + '%';
+      document.getElementById('opensky-used').textContent = apiUsage.opensky.used;
+      document.getElementById('opensky-bar').style.width = ((apiUsage.opensky.used / apiUsage.opensky.limit) * 100) + '%';
+    }
+
+    function recordApiCall(api) {
+      if (apiUsage[api]) { apiUsage[api].used++; updateApiCounters(); }
+    }
+
+    // ── Demo flights ──
+    const DEMO_FLIGHTS = {
+      'AA100': {
+        flight: 'AA100', airline: 'American Airlines', status: 'active',
+        departure: { iata: 'JFK', city: 'New York', lat: 40.6413, lon: -73.7781, time: '08:30' },
+        arrival:   { iata: 'LAX', city: 'Los Angeles', lat: 33.9425, lon: -118.4081, time: '11:45' },
+        aircraft: 'Boeing 777-300ER', altitude: '38,000 ft', speed: '560 mph', duration: '5h 15m',
+        currentLat: 37.5, currentLon: -98.0,
+      },
+      'UA302': {
+        flight: 'UA302', airline: 'United Airlines', status: 'active',
+        departure: { iata: 'SFO', city: 'San Francisco', lat: 37.6213, lon: -122.3790, time: '14:20' },
+        arrival:   { iata: 'LHR', city: 'London', lat: 51.4700, lon: -0.4543, time: '08:40+1' },
+        aircraft: 'Boeing 787-9', altitude: '41,000 ft', speed: '580 mph', duration: '10h 20m',
+        currentLat: 54.0, currentLon: -30.0,
+      },
+      'BA178': {
+        flight: 'BA178', airline: 'British Airways', status: 'active',
+        departure: { iata: 'LHR', city: 'London', lat: 51.4700, lon: -0.4543, time: '09:00' },
+        arrival:   { iata: 'NRT', city: 'Tokyo', lat: 35.7647, lon: 140.3864, time: '05:30+1' },
+        aircraft: 'Airbus A350-1000', altitude: '39,000 ft', speed: '575 mph', duration: '11h 30m',
+        currentLat: 60.0, currentLon: 65.0,
+      },
+      'DL50': {
+        flight: 'DL50', airline: 'Delta Air Lines', status: 'landed',
+        departure: { iata: 'CDG', city: 'Paris', lat: 49.0097, lon: 2.5479, time: '10:15' },
+        arrival:   { iata: 'ATL', city: 'Atlanta', lat: 33.6407, lon: -84.4277, time: '14:00' },
+        aircraft: 'Airbus A330-900', altitude: '0 ft', speed: '0 mph', duration: '9h 45m',
+        currentLat: 33.6407, currentLon: -84.4277,
+      },
+    };
+
+    // ── DOM ──
+    const landing       = document.getElementById('landing');
+    const flightInput   = document.getElementById('flight-input');
+    const searchBtn     = document.getElementById('search-btn');
+    const spinner       = document.getElementById('landing-spinner');
+    const topbar        = document.getElementById('topbar');
+    const backBtn       = document.getElementById('back-btn');
+    const miniInput     = document.getElementById('mini-input');
+    const miniSearchBtn = document.getElementById('mini-search-btn');
+    const infoPanel     = document.getElementById('info-panel');
+    const apiToggle     = document.getElementById('api-toggle');
+    const apiPanel      = document.getElementById('api-panel');
+    const errorToast    = document.getElementById('error-toast');
+
+    function showError(msg) {
+      errorToast.textContent = msg;
+      errorToast.classList.add('visible');
+      setTimeout(() => errorToast.classList.remove('visible'), 3500);
+    }
+
+    function clearMap() {
+      if (flightPath) { map.removeLayer(flightPath); flightPath = null; }
+      markersList.forEach(m => map.removeLayer(m));
+      markersList = [];
+    }
+
+    function generateArc(from, to, numPoints) {
+      const points = [];
+      for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        const lat = from[0] + (to[0] - from[0]) * t;
+        let lonDiff = to[1] - from[1];
+        if (lonDiff > 180) lonDiff -= 360;
+        if (lonDiff < -180) lonDiff += 360;
+        const lon = from[1] + lonDiff * t;
+        const arc = Math.sin(Math.PI * t) * Math.min(20, Math.abs(to[0] - from[0]) * 0.3 + Math.abs(lonDiff) * 0.08);
+        points.push([lat + arc * 0.3, lon]);
+      }
+      return points;
+    }
+
+    function createAirportIcon(type) {
+      const color = type === 'dep' ? '#2a5a3c' : '#8b2020';
+      return L.divIcon({
+        className: '',
+        html: '<div style="width:12px;height:12px;background:' + color + ';border:2px solid #f2ebd4;border-radius:50%;box-shadow:0 0 0 1.5px ' + color + ';"></div>',
+        iconSize: [12, 12], iconAnchor: [6, 6],
+      });
+    }
+
+    function createPlaneIcon() {
+      return L.divIcon({
+        className: '',
+        html: '<div style="font-size:40px;line-height:1;width:40px;text-align:center;color:#e08840;cursor:pointer;filter:drop-shadow(1px 1px 1px rgba(44,24,16,0.4));">&#9992;</div>',
+        iconSize: [40, 40], iconAnchor: [22, 24],
+      });
+    }
+
+    function displayFlight(data) {
+      clearMap();
+
+      const dep = [data.departure.lat, data.departure.lon];
+      const arr = [data.arrival.lat, data.arrival.lon];
+      const cur = [data.currentLat, data.currentLon];
+
+      // Generate full arc, then find closest point to plane position and split there
+      var fullArc = generateArc(dep, arr, 100);
+
+      // Find the arc point nearest to the current plane position
+      var bestIdx = 0;
+      var bestDist = Infinity;
+      for (var i = 0; i < fullArc.length; i++) {
+        var dLat = fullArc[i][0] - cur[0];
+        var dLon = fullArc[i][1] - cur[1];
+        var dist = dLat * dLat + dLon * dLon;
+        if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+      }
+
+      var traveledArc = fullArc.slice(0, bestIdx + 1);
+      var planePos = fullArc[bestIdx]; // place plane exactly on the arc
+
+      // Dashed full route — navy blue
+      flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.4, dashArray: '6 5' }).addTo(map);
+
+      // Solid traveled portion — navy blue, sits exactly on top
+      var traveled = L.polyline(traveledArc, { color: '#4a7a9a', weight: 3, opacity: 0.9 }).addTo(map);
+      markersList.push(traveled);
+
+      var depM = L.marker(dep, { icon: createAirportIcon('dep') })
+        .bindTooltip(data.departure.iata, { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+      var arrM = L.marker(arr, { icon: createAirportIcon('arr') })
+        .bindTooltip(data.arrival.iata, { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+      var planeM = L.marker(planePos, { icon: createPlaneIcon() }).addTo(map);
+      planeM.on('click', function() {
+        infoPanel.classList.toggle('visible');
+      });
+      markersList.push(depM, arrM, planeM);
+
+      map.fitBounds(L.latLngBounds([dep, arr, cur]).pad(0.15), { duration: 0.8 });
+
+      // Fill panel data (but don't show it yet — tap plane to reveal)
+      document.getElementById('fl-number').textContent = data.flight;
+      var s = document.getElementById('fl-status');
+      s.textContent = data.status;
+      s.className = 'flight-status status-' + (data.status === 'active' ? 'active' : data.status === 'landed' ? 'landed' : 'scheduled');
+      document.getElementById('fl-airline-row').textContent = data.airline;
+      document.getElementById('fl-dep-code').textContent = data.departure.iata;
+      document.getElementById('fl-dep-city').textContent = data.departure.city;
+      document.getElementById('fl-arr-code').textContent = data.arrival.iata;
+      document.getElementById('fl-arr-city').textContent = data.arrival.city;
+      document.getElementById('fl-dep-time').textContent = data.departure.time;
+      document.getElementById('fl-arr-time').textContent = data.arrival.time;
+      document.getElementById('fl-aircraft').textContent = data.aircraft;
+      document.getElementById('fl-altitude').textContent = data.altitude;
+      document.getElementById('fl-speed').textContent = data.speed;
+      document.getElementById('fl-duration').textContent = data.duration;
+
+      landing.classList.add('hidden');
+      topbar.classList.add('visible');
+      apiToggle.classList.add('visible');
+      map.getPane('labelsPane').style.opacity = '1';
+
+      recordApiCall('aviationstack');
+      recordApiCall('opensky');
+    }
+
+    function trackFlight(query) {
+      const code = query.trim().toUpperCase().replace(/\s+/g, '');
+      if (!code) return;
+      spinner.classList.add('visible');
+      setTimeout(() => {
+        spinner.classList.remove('visible');
+        const data = DEMO_FLIGHTS[code];
+        if (data) { displayFlight(data); }
+        else { showError('Flight "' + code + '" not found. Try AA100, UA302, BA178, or DL50.'); }
+      }, 800);
+    }
+
+    function goBack() {
+      clearMap();
+      landing.classList.remove('hidden');
+      topbar.classList.remove('visible');
+      infoPanel.classList.remove('visible');
+      apiToggle.classList.remove('visible');
+      apiPanel.classList.remove('visible');
+      map.getPane('labelsPane').style.opacity = '0';
+      map.setView([20, 0], 2, { duration: 0.5 });
+      flightInput.value = '';
+      flightInput.focus();
+    }
+
+    map.on('click', function() { infoPanel.classList.remove('visible'); });
+
+    searchBtn.addEventListener('click', function() { trackFlight(flightInput.value); });
+    flightInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') trackFlight(flightInput.value); });
+    miniSearchBtn.addEventListener('click', function() { trackFlight(miniInput.value); });
+    miniInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') trackFlight(miniInput.value); });
+    backBtn.addEventListener('click', goBack);
+    apiToggle.addEventListener('click', function() {
+      apiPanel.classList.toggle('visible');
+      apiToggle.textContent = apiPanel.classList.contains('visible') ? 'API Allowances \u25B4' : 'API Allowances \u25BE';
+    });
+
+    // Tooltip style
+    var ts = document.createElement('style');
+    ts.textContent = '.vintage-tooltip,.leaflet-tooltip{font-family:"Playfair Display",Georgia,serif!important;background:#f2ebd4!important;color:#2c1810!important;border:1.5px solid #2a5a6b!important;border-radius:0!important;font-weight:900!important;font-size:.75rem!important;letter-spacing:1.5px!important;padding:4px 9px!important;box-shadow:1px 1px 0 rgba(44,24,16,.1)!important}.leaflet-tooltip-top:before,.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{border:none!important}';
+    document.head.appendChild(ts);
+  </script>
+</body>
+</html>
