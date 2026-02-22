@@ -1663,8 +1663,17 @@
       // Check if we've hit the monthly limit
       if (apiUsage.aviationstack.used >= apiUsage.aviationstack.limit) {
         spinner.classList.remove('visible');
-        showError('AviationStack monthly limit reached. Try a live callsign or demo flight.');
+        showError('Schedule lookups used up for the month (' + apiUsage.aviationstack.limit + '/' + apiUsage.aviationstack.limit + '). Live flight tracking still works — try an active callsign.');
         return;
+      }
+
+      // Warn when running low
+      var remaining = apiUsage.aviationstack.limit - apiUsage.aviationstack.used;
+      if (remaining <= 20) {
+        if (!confirm('Only ' + remaining + ' schedule lookups left this month. Use one for "' + code + '"?')) {
+          spinner.classList.remove('visible');
+          return;
+        }
       }
 
       fetch(WORKER_URL + '/?flight=' + encodeURIComponent(code))
