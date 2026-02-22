@@ -1483,9 +1483,9 @@
         return;
       }
 
-      // Live lookup via ADSB.lol, then fallback to AviationStack worker
+      // Live lookup via ADSB.lol (proxied through worker for CORS), then fallback to AviationStack
       spinner.classList.add('visible');
-      fetch('https://api.adsb.lol/v2/callsign/' + encodeURIComponent(code))
+      fetch(WORKER_URL + '/?source=adsb&flight=' + encodeURIComponent(code))
         .then(function(res) {
           if (!res.ok) throw new Error('API error');
           return res.json();
