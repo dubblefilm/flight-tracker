@@ -1363,29 +1363,50 @@
           .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
         markersList.push(depM, arrM);
 
-        if (status === 'active' && hasLive) {
-          // Active flight — show plane + traveled portion
-          var curPt = [live.latitude, live.longitude];
-          var bestIdx = 0;
-          var bestDist = Infinity;
-          for (var i = 0; i < fullArc.length; i++) {
-            var dLat = fullArc[i][0] - curPt[0];
-            var dLon = fullArc[i][1] - curPt[1];
-            var dist = dLat * dLat + dLon * dLon;
-            if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+        if (status === 'active') {
+          // Active flight — show plane on route
+          var planeIdx;
+          var planeHeading = null;
+
+          if (hasLive) {
+            // Exact position from live data
+            var curPt = [live.latitude, live.longitude];
+            var bestDist = Infinity;
+            planeIdx = 0;
+            for (var i = 0; i < fullArc.length; i++) {
+              var dLat = fullArc[i][0] - curPt[0];
+              var dLon = fullArc[i][1] - curPt[1];
+              var dist = dLat * dLat + dLon * dLon;
+              if (dist < bestDist) { bestDist = dist; planeIdx = i; }
+            }
+            planeHeading = typeof live.direction === 'number' ? live.direction : null;
+          } else {
+            // Estimate position from scheduled times
+            var depTime = dep && (dep.actual || dep.estimated || dep.scheduled);
+            var arrTime = arr && (arr.actual || arr.estimated || arr.scheduled);
+            if (depTime && arrTime) {
+              var now = Date.now();
+              var depMs = new Date(depTime).getTime();
+              var arrMs = new Date(arrTime).getTime();
+              var progress = Math.max(0, Math.min(1, (now - depMs) / (arrMs - depMs)));
+              planeIdx = Math.round(progress * 100);
+            } else {
+              planeIdx = 50; // default to midpoint
+            }
           }
-          var traveledArc = fullArc.slice(0, bestIdx + 1);
-          var planePos = fullArc[bestIdx];
+
+          planeIdx = Math.max(0, Math.min(99, planeIdx));
+          var planePos = fullArc[planeIdx];
+          var traveledArc = fullArc.slice(0, planeIdx + 1);
 
           var traveled = L.polyline(traveledArc, { color: '#e08840', weight: 3.5, opacity: 0.85 }).addTo(map);
           markersList.push(traveled);
 
-          var heading = typeof live.direction === 'number' ? live.direction : null;
-          var planeM = L.marker(planePos, { icon: createPlaneIcon(heading), zIndexOffset: 500 }).addTo(map);
+          var planeM = L.marker(planePos, { icon: createPlaneIcon(planeHeading), zIndexOffset: 500 }).addTo(map);
           planeM.on('click', function() { infoPanel.classList.toggle('visible'); });
           markersList.push(planeM);
 
-          map.fitBounds(L.latLngBounds([depPt, arrPt, curPt]).pad(0.15), { duration: 0.8 });
+          map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.15), { duration: 0.8 });
         } else {
           map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.2), { duration: 0.8 });
         }
