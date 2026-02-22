@@ -1051,6 +1051,14 @@
       });
     }
 
+    function createInfoIcon() {
+      return L.divIcon({
+        className: '',
+        html: '<div style="width:28px;height:28px;background:#2a5a6b;border:2px solid #f2ebd4;border-radius:50%;box-shadow:0 1px 4px rgba(44,24,16,0.3);color:#f2ebd4;font-family:Playfair Display,Georgia,serif;font-size:16px;font-weight:900;font-style:italic;line-height:24px;text-align:center;cursor:pointer;">i</div>',
+        iconSize: [28, 28], iconAnchor: [14, 14],
+      });
+    }
+
     function createPlaneIcon(heading) {
       var rot = typeof heading === 'number' ? 'transform:rotate(' + heading + 'deg);' : '';
       return L.divIcon({
@@ -1236,7 +1244,7 @@
 
           map.fitBounds(L.latLngBounds([depPt, arrPt, curPt]).pad(0.15), { duration: 0.8 });
         } else {
-          // Scheduled or landed — show airports with dashed route, no plane
+          // Scheduled or landed — show airports with dashed route + info marker at midpoint
           var fullArc = generateArc(depPt, arrPt, 100);
           flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.5, dashArray: '6 5' }).addTo(map);
 
@@ -1244,7 +1252,11 @@
             .bindTooltip(dep.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
           var arrM = L.marker(arrPt, { icon: createAirportIcon('arr') })
             .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
-          markersList.push(depM, arrM);
+
+          var midPt = fullArc[50];
+          var infoM = L.marker(midPt, { icon: createInfoIcon() }).addTo(map);
+          infoM.on('click', function() { infoPanel.classList.toggle('visible'); });
+          markersList.push(depM, arrM, infoM);
 
           map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.2), { duration: 0.8 });
         }
