@@ -1347,11 +1347,20 @@
         var depPt = depCoords;
         var arrPt = arrCoords;
 
-        if (status === 'active' && hasLive) {
-          // Active flight with position — show full route + plane
-          var curPt = [live.latitude, live.longitude];
-          var fullArc = generateArc(depPt, arrPt, 100);
+        // Draw route arc
+        var fullArc = generateArc(depPt, arrPt, 100);
+        flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.4, dashArray: '6 5' }).addTo(map);
 
+        // Airport markers
+        var depM = L.marker(depPt, { icon: createAirportIcon('dep'), zIndexOffset: 100 })
+          .bindTooltip(dep.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+        var arrM = L.marker(arrPt, { icon: createAirportIcon('arr'), zIndexOffset: 100 })
+          .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
+        markersList.push(depM, arrM);
+
+        if (status === 'active' && hasLive) {
+          // Active flight — show plane + traveled portion
+          var curPt = [live.latitude, live.longitude];
           var bestIdx = 0;
           var bestDist = Infinity;
           for (var i = 0; i < fullArc.length; i++) {
@@ -1363,39 +1372,24 @@
           var traveledArc = fullArc.slice(0, bestIdx + 1);
           var planePos = fullArc[bestIdx];
 
-          flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.4, dashArray: '6 5' }).addTo(map);
           var traveled = L.polyline(traveledArc, { color: '#4a7a9a', weight: 3, opacity: 0.9 }).addTo(map);
           markersList.push(traveled);
 
           var heading = typeof live.direction === 'number' ? live.direction : null;
-          var planeM = L.marker(planePos, { icon: createPlaneIcon(heading) }).addTo(map);
+          var planeM = L.marker(planePos, { icon: createPlaneIcon(heading), zIndexOffset: 500 }).addTo(map);
           planeM.on('click', function() { infoPanel.classList.toggle('visible'); });
           markersList.push(planeM);
 
-          var depM = L.marker(depPt, { icon: createAirportIcon('dep') })
-            .bindTooltip(dep.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
-          var arrM = L.marker(arrPt, { icon: createAirportIcon('arr') })
-            .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
-          markersList.push(depM, arrM);
-
           map.fitBounds(L.latLngBounds([depPt, arrPt, curPt]).pad(0.15), { duration: 0.8 });
         } else {
-          // Scheduled or landed — show airports with dashed route + info marker at midpoint
-          var fullArc = generateArc(depPt, arrPt, 100);
-          flightPath = L.polyline(fullArc, { color: '#4a7a9a', weight: 2, opacity: 0.5, dashArray: '6 5' }).addTo(map);
-
-          var depM = L.marker(depPt, { icon: createAirportIcon('dep') })
-            .bindTooltip(dep.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
-          var arrM = L.marker(arrPt, { icon: createAirportIcon('arr') })
-            .bindTooltip(arr.iata || '?', { permanent: true, direction: 'top', className: 'vintage-tooltip', offset: [0, -14] }).addTo(map);
-
-          var midPt = fullArc[50];
-          var infoM = L.marker(midPt, { icon: createInfoIcon() }).addTo(map);
-          infoM.on('click', function() { infoPanel.classList.toggle('visible'); });
-          markersList.push(depM, arrM, infoM);
-
           map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.2), { duration: 0.8 });
         }
+
+        // Always add info marker at midpoint for easy access to details
+        var midPt = fullArc[50];
+        var infoM = L.marker(midPt, { icon: createInfoIcon(), zIndexOffset: 400 }).addTo(map);
+        infoM.on('click', function() { infoPanel.classList.toggle('visible'); });
+        markersList.push(infoM);
       } else if (hasLive) {
         // No airport coords but have live position — show plane marker
         var planeM = L.marker([live.latitude, live.longitude], { icon: createPlaneIcon(typeof live.direction === 'number' ? live.direction : null) }).addTo(map);
@@ -1465,6 +1459,7 @@
       landing.classList.add('hidden');
       topbar.classList.add('visible');
       apiToggle.classList.add('visible');
+      infoPanel.classList.add('visible');
       map.getPane('labelsPane').style.opacity = '1';
     }
 
