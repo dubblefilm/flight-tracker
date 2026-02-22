@@ -2,19 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#2a5a6b">
   <title>Flight Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    html { height: 100%; }
     body {
       font-family: 'Libre Baskerville', 'Georgia', 'Times New Roman', serif;
       background: #c8c0ae;
       color: #2c1810;
-      height: 100vh;
+      height: 100dvh; /* dynamic viewport height — shrinks with Chrome URL bar */
+      height: 100vh; /* fallback for older browsers */
       overflow: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+    @supports (height: 100dvh) {
+      body { height: 100dvh; }
     }
 
     /* ── Wall map frame ── */
@@ -92,6 +101,9 @@
       z-index: 1000;
       background: rgba(242, 235, 212, 0.55);
       transition: opacity 0.6s, visibility 0.6s;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px;
     }
     #landing.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
@@ -544,119 +556,156 @@
     .tick { width: 1px; height: 8px; background: #5a4a30; opacity: 0.3; }
     .tick.h { width: 8px; height: 1px; }
 
-    /* ── Responsive ── */
+    /* -- Responsive -- */
     @media (max-width: 768px) {
-      /* Remove wood bars and string on mobile — full bleed map */
+      /* Full bleed - remove all decorative chrome */
       .wood-bar { display: none; }
       .string { display: none; }
-
+      .tick-overlay { display: none; }
       .map-border { padding: 0; }
       #map { top: 0; left: 0; right: 0; bottom: 0; }
 
-      /* Hide tick marks on mobile */
-      .tick-overlay { display: none; }
-
-      /* Landing — compact, centered */
-      #landing { padding: 0 20px; }
+      /* Landing screen */
+      #landing {
+        padding: 0 24px;
+        padding-top: env(safe-area-inset-top, 0);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+      }
       .cartouche {
-        margin-bottom: 20px;
-        padding: 16px 24px;
+        margin-bottom: 24px;
+        padding: 20px 28px;
         border-width: 1.5px;
+        max-width: 340px;
+        width: 100%;
       }
       .cartouche::before { inset: 2px; }
-      .cartouche .small-label { font-size: 0.55rem; letter-spacing: 2px; }
-      .cartouche h1 { font-size: 1.6rem; letter-spacing: 3px; }
-      .cartouche .map-subtitle { font-size: 0.6rem; letter-spacing: 1.5px; }
-      .cartouche .projection { font-size: 0.55rem; }
+      .cartouche .small-label { font-size: 0.6rem; letter-spacing: 2px; }
+      .cartouche h1 { font-size: 1.8rem; letter-spacing: 4px; }
+      .cartouche .map-subtitle { font-size: 0.62rem; letter-spacing: 1.5px; }
+      .cartouche .projection { font-size: 0.58rem; }
 
-      .search-box { width: 100%; max-width: 90vw; border-width: 1.5px; }
-      .search-box input { padding: 12px 14px; font-size: 0.9rem; letter-spacing: 2px; }
-      .search-box button { padding: 12px 18px; font-size: 0.82rem; border-left-width: 1.5px; }
+      .search-box {
+        width: 100%;
+        max-width: 340px;
+        border-width: 1.5px;
+      }
+      .search-box input {
+        padding: 14px 16px;
+        font-size: 16px;
+        letter-spacing: 2px;
+      }
+      .search-box button {
+        padding: 14px 20px;
+        font-size: 0.85rem;
+        border-left-width: 1.5px;
+        white-space: nowrap;
+      }
 
-      .demo-hint { font-size: 0.7rem; padding: 0 16px; text-align: center; }
-      .live-note { font-size: 0.65rem; padding: 0 16px; }
+      .demo-hint {
+        font-size: 0.72rem;
+        padding: 0 12px;
+        text-align: center;
+        max-width: 340px;
+        margin-top: 16px;
+      }
+      .live-note {
+        font-size: 0.65rem;
+        padding: 0 12px;
+        max-width: 340px;
+      }
+      .spinner { margin: 16px auto 0; }
 
-      /* Top bar — clean, no background, safe area aware */
+      /* Top bar */
       #topbar {
-        padding: 8px 12px;
-        padding-top: max(8px, env(safe-area-inset-top));
-        gap: 8px;
         top: 0; left: 0; right: 0;
+        padding: 10px 12px;
+        padding-top: max(10px, env(safe-area-inset-top));
+        gap: 8px;
+        background: linear-gradient(180deg, rgba(242,235,212,0.85) 0%, rgba(242,235,212,0) 100%);
       }
       #topbar .back-btn {
-        padding: 8px 14px;
-        font-size: 0.75rem;
+        padding: 10px 14px;
+        font-size: 0.78rem;
+        flex-shrink: 0;
         box-shadow: 0 1px 4px rgba(44,24,16,0.15);
       }
       #topbar .mini-search {
         flex: 1;
+        min-width: 0;
         box-shadow: 0 1px 4px rgba(44,24,16,0.15);
       }
       #topbar .mini-search input {
         width: 0;
         flex: 1;
-        padding: 8px 10px;
-        font-size: 0.75rem;
+        min-width: 0;
+        padding: 10px 10px;
+        font-size: 16px;
       }
       #topbar .mini-search button {
-        padding: 8px 14px;
-        font-size: 0.72rem;
+        padding: 10px 14px;
+        font-size: 0.75rem;
+        flex-shrink: 0;
       }
 
-      /* Flight info panel — bottom sheet with rounded top */
+      /* Info panel - bottom sheet */
       #info-panel {
         left: 0;
         right: 0;
         bottom: 0;
         width: auto;
         max-width: none;
-        max-height: 50vh;
+        max-height: 50dvh;
         overflow-y: auto;
-        border-left: none;
-        border-right: none;
-        border-bottom: none;
+        -webkit-overflow-scrolling: touch;
+        border: none;
         border-top: 2px solid #2a5a6b;
         box-shadow: 0 -4px 20px rgba(44,24,16,0.15);
-        -webkit-overflow-scrolling: touch;
       }
       #info-panel::before {
         inset: 2px 0 0 0;
-        border-left: none;
-        border-right: none;
-        border-bottom: none;
+        border: none;
+        border-top: 1px solid rgba(42,90,107,0.3);
       }
-      .panel-title { padding: 8px 16px; font-size: 0.65rem; }
-      .panel-body { padding: 12px 16px 16px; }
+      .panel-title {
+        padding: 10px 16px;
+        font-size: 0.65rem;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+      }
+      .panel-body {
+        padding: 14px 18px 20px;
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+      }
 
-      .flight-header { gap: 10px; margin-bottom: 8px; padding-bottom: 8px; }
-      .flight-number { font-size: 1.4rem; }
-      .flight-status { font-size: 0.6rem; padding: 3px 8px; }
-      #fl-airline-row { font-size: 0.75rem; margin-bottom: 8px; }
+      .flight-header { gap: 10px; margin-bottom: 10px; padding-bottom: 10px; }
+      .flight-number { font-size: 1.5rem; }
+      .flight-status { font-size: 0.62rem; padding: 3px 10px; }
+      #fl-airline-row { font-size: 0.78rem; margin-bottom: 10px; }
 
-      .route-visual { padding: 10px 12px; gap: 8px; margin: 8px 0; }
-      .airport-code { font-size: 1.1rem; }
-      .airport-city { font-size: 0.62rem; }
+      .route-visual { padding: 12px 14px; gap: 10px; margin: 10px 0; }
+      .airport-code { font-size: 1.15rem; }
+      .airport-city { font-size: 0.65rem; }
 
-      .detail-grid { gap: 8px; margin-top: 8px; padding-top: 8px; }
-      .detail-item label { font-size: 0.55rem; }
-      .detail-item span { font-size: 0.82rem; }
+      .detail-grid { gap: 10px; margin-top: 10px; padding-top: 10px; }
+      .detail-item label { font-size: 0.58rem; }
+      .detail-item span { font-size: 0.85rem; }
 
-      .live-detail-grid.visible { padding: 10px 12px; gap: 8px; }
-      .live-detail-grid .detail-item label { font-size: 0.55rem; }
-      .live-detail-grid .detail-item span { font-size: 0.82rem; }
+      .live-detail-grid.visible { padding: 12px 14px; gap: 10px; }
+      .live-detail-grid .detail-item label { font-size: 0.58rem; }
+      .live-detail-grid .detail-item span { font-size: 0.85rem; }
 
-      /* API toggle + panel — compact, top-right to avoid bottom sheet */
+      /* API toggle + panel */
       #api-toggle {
-        bottom: auto; top: auto;
+        top: auto; bottom: 20px;
         right: 12px; left: auto;
-        top: 52px;
         padding: 6px 10px;
         font-size: 0.62rem;
         box-shadow: 0 1px 4px rgba(44,24,16,0.15);
       }
       #api-panel {
-        bottom: auto; right: 12px; left: auto;
-        top: 80px;
+        bottom: 52px; top: auto;
+        right: 12px; left: auto;
         width: 200px;
         box-shadow: 0 2px 8px rgba(44,24,16,0.15);
       }
@@ -665,41 +714,60 @@
 
       /* Error toast */
       #error-toast {
-        font-size: 0.75rem;
-        padding: 10px 20px;
-        top: 50px;
-        max-width: 90vw;
+        font-size: 0.78rem;
+        padding: 12px 20px;
+        top: 60px;
+        left: 12px;
+        right: 12px;
+        max-width: none;
+        transform: none;
         text-align: center;
         box-shadow: 0 2px 8px rgba(44,24,16,0.15);
       }
 
-      /* Leaflet zoom control */
-      .leaflet-control-zoom { margin-top: 50px !important; }
+      /* Leaflet */
+      .leaflet-control-zoom { margin-top: 56px !important; margin-right: 8px !important; }
+      .leaflet-control-zoom a {
+        width: 34px !important; height: 34px !important;
+        line-height: 32px !important; font-size: 18px !important;
+      }
     }
 
-    @media (max-width: 400px) {
-      .cartouche { padding: 14px 16px; margin-bottom: 16px; }
-      .cartouche h1 { font-size: 1.3rem; letter-spacing: 2px; }
-      .cartouche .small-label { font-size: 0.5rem; }
+    /* Small phones (iPhone SE, etc.) */
+    @media (max-width: 380px) {
+      .cartouche {
+        padding: 14px 18px;
+        margin-bottom: 18px;
+        max-width: 280px;
+      }
+      .cartouche h1 { font-size: 1.4rem; letter-spacing: 2px; }
+      .cartouche .small-label { font-size: 0.5rem; letter-spacing: 1.5px; }
+      .cartouche .map-subtitle { font-size: 0.55rem; }
 
-      .search-box input { padding: 10px 12px; font-size: 0.85rem; }
-      .search-box button { padding: 10px 14px; font-size: 0.75rem; letter-spacing: 1px; }
+      .search-box { max-width: 280px; }
+      .search-box input { padding: 12px 12px; }
+      .search-box button { padding: 12px 14px; font-size: 0.78rem; letter-spacing: 1px; }
+
+      .demo-hint { font-size: 0.65rem; max-width: 280px; }
 
       .flight-number { font-size: 1.2rem; }
-      .airport-code { font-size: 0.95rem; }
-      .detail-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .airport-code { font-size: 1rem; }
+      .detail-grid { gap: 6px; }
+      .detail-item span { font-size: 0.78rem; }
 
       #api-panel { width: 180px; }
     }
 
-    /* Landscape phones — reduce vertical usage */
+    /* Landscape phones */
     @media (max-height: 500px) {
+      #landing { padding: 10px 24px; }
       .cartouche { margin-bottom: 12px; padding: 10px 20px; }
       .cartouche h1 { font-size: 1.3rem; }
       .demo-hint { margin-top: 10px; }
+      .live-note { margin-top: 4px; }
       .spinner { margin: 10px auto 0; }
 
-      #info-panel { max-height: 60vh; }
+      #info-panel { max-height: 60dvh; }
     }
   </style>
 </head>
