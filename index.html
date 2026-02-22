@@ -923,6 +923,53 @@
     loadApiUsage();
 
     // ── Demo flights ──
+    // ── Airport coordinates lookup (AviationStack free tier omits these) ──
+    const AIRPORTS = {
+      ATL:[33.6407,-84.4277],JFK:[40.6413,-73.7781],LAX:[33.9425,-118.4081],ORD:[41.9742,-87.9073],
+      DFW:[32.8998,-97.0403],DEN:[39.8561,-104.6737],SFO:[37.6213,-122.3790],SEA:[47.4502,-122.3088],
+      LAS:[36.0840,-115.1537],MCO:[28.4312,-81.3081],CLT:[35.2140,-80.9431],MIA:[25.7959,-80.2870],
+      PHX:[33.4373,-112.0078],EWR:[40.6895,-74.1745],IAH:[29.9902,-95.3368],MSP:[44.8848,-93.2223],
+      BOS:[42.3656,-71.0096],DTW:[42.2124,-83.3534],FLL:[26.0726,-80.1527],BWI:[39.1754,-76.6683],
+      SLC:[40.7884,-111.9778],DCA:[38.8512,-77.0402],SAN:[32.7338,-117.1933],TPA:[27.9755,-82.5332],
+      IAD:[38.9531,-77.4565],PDX:[45.5898,-122.5951],HNL:[21.3187,-157.9224],AUS:[30.1975,-97.6664],
+      BNA:[36.1263,-86.6774],RDU:[35.8776,-78.7875],LHR:[51.4700,-0.4543],LGW:[51.1537,-0.1821],
+      STN:[51.8860,0.2389],CDG:[49.0097,2.5479],ORY:[48.7233,2.3794],AMS:[52.3105,4.7683],
+      FRA:[50.0379,8.5622],MUC:[48.3537,11.7750],FCO:[41.8003,12.2389],MXP:[45.6306,8.7281],
+      MAD:[40.4983,-3.5676],BCN:[41.2971,2.0785],LIS:[38.7813,-9.1359],ZRH:[47.4647,8.5492],
+      VIE:[48.1103,16.5697],CPH:[55.6180,12.6508],OSL:[60.1976,11.1004],ARN:[59.6519,17.9186],
+      HEL:[60.3172,24.9633],WAW:[52.1657,20.9671],PRG:[50.1008,14.2600],BUD:[47.4369,19.2556],
+      OTP:[44.5711,26.0850],SOF:[42.6967,23.4114],IST:[41.2753,28.7519],SAW:[40.8986,29.3092],
+      ATH:[37.9364,23.9445],DUB:[53.4213,-6.2701],EDI:[55.9508,-3.3615],BRU:[50.9014,4.4844],
+      DXB:[25.2528,55.3644],DOH:[25.2731,51.6081],AUH:[24.4330,54.6511],SIN:[1.3644,103.9915],
+      HKG:[22.3080,113.9185],NRT:[35.7647,140.3864],HND:[35.5494,139.7798],KIX:[34.4347,135.2441],
+      ICN:[37.4602,126.4407],GMP:[37.5583,126.7906],PEK:[40.0799,116.6031],PVG:[31.1443,121.8083],
+      CAN:[23.3924,113.2988],TPE:[25.0777,121.2328],BKK:[13.6900,100.7501],DEL:[28.5562,77.1000],
+      BOM:[19.0896,72.8656],SYD:[-33.9461,151.1772],MEL:[-37.6690,144.8410],AKL:[-37.0082,174.7850],
+      JNB:[-26.1392,28.2460],CPT:[-33.9649,18.6017],GRU:[-23.4356,-46.4731],GIG:[-22.8100,-43.2506],
+      MEX:[19.4363,-99.0721],YYZ:[43.6777,-79.6248],YVR:[49.1967,-123.1815],YUL:[45.4706,-73.7408],
+      NBO:[-1.3192,36.9278],ADD:[8.9779,38.7993],CAI:[30.1219,31.4056],CMN:[33.3675,-7.5898],
+      MNL:[14.5086,121.0198],KUL:[2.7456,101.7099],CGK:[-6.1256,106.6559],
+      LTN:[51.8747,-0.3683],STR:[48.6899,9.2220],HAM:[53.6304,9.9882],TXL:[52.5597,13.2877],
+      BER:[52.3667,13.5033],BGY:[45.6739,9.7042],CIA:[41.7994,12.5949],NAP:[40.8860,14.2908],
+      PMI:[39.5517,2.7388],AGP:[36.6749,-4.4991],SVQ:[37.4180,-5.8932],VLC:[39.4893,-0.4816],
+      BIO:[43.3011,-2.9106],OPO:[41.2481,-8.6814],GVA:[46.2380,6.1089],BSL:[47.5896,7.5299],
+      LUX:[49.6266,6.2115],TLL:[59.4133,24.8328],RIX:[56.9236,23.9711],VNO:[54.6341,25.2858],
+      SKG:[40.5197,22.9709],HER:[35.3397,25.1803],TIA:[41.4147,19.7206],BEG:[44.8184,20.3091],
+      ZAG:[45.7430,16.0688],LJU:[46.2237,14.4576],SJJ:[43.8246,18.3315],KBP:[50.3450,30.8947],
+      LED:[59.8003,30.2625],SVO:[55.9726,37.4146],DME:[55.4088,37.9063],
+      RUH:[24.9576,46.6988],JED:[21.6796,39.1565],MCT:[23.5933,58.2844],BAH:[26.2708,50.6336],
+      KWI:[29.2266,47.9689],AMM:[31.7226,35.9932],BEY:[33.8209,35.4884],TLV:[32.0114,34.8867],
+      DAR:[-6.8781,39.2026],MBA:[-4.0348,39.5942],LOS:[6.5774,3.3212],ACC:[5.6052,-0.1668],
+      DSS:[14.6700,-17.0733],CMB:[7.1808,79.8841],MLE:[4.1918,73.5291],
+      CTS:[42.7752,141.6925],FUK:[33.5859,130.4511],OKA:[26.1958,127.6459],
+      CKG:[29.7192,106.6417],CTU:[30.5785,103.9471],SZX:[22.6393,113.8107],XIY:[34.4471,108.7516],
+      HAN:[21.2212,105.8070],SGN:[10.8188,106.6520],REP:[13.4107,103.8126],
+      RGN:[16.9073,96.1332],DAD:[16.0439,108.1992],
+      GDL:[20.5218,-103.3113],CUN:[21.0365,-86.8771],PTY:[9.0714,-79.3835],
+      BOG:[4.7016,-74.1469],LIM:[-12.0219,-77.1143],SCL:[-33.3930,-70.7858],EZE:[-34.8222,-58.5358],
+      MVD:[-34.8384,-56.0308],CNF:[-19.6244,-43.9719],BSB:[-15.8711,-47.9186],
+    };
+
     const DEMO_FLIGHTS = {
       'AA100': {
         flight: 'AA100', airline: 'American Airlines', status: 'active',
@@ -1143,15 +1190,18 @@
       var live = flight.live;
       var status = (flight.flight_status || '').toLowerCase();
 
-      // We need airport coordinates — AviationStack doesn't always provide them.
-      // Use timezone as a fallback hint, but if no lat/lon just show info panel.
-      var hasDepCoords = dep && typeof dep.latitude === 'number' && typeof dep.longitude === 'number';
-      var hasArrCoords = arr && typeof arr.latitude === 'number' && typeof arr.longitude === 'number';
+      // Resolve airport coordinates: API response first, then local lookup
+      var depCoords = (dep && typeof dep.latitude === 'number') ? [dep.latitude, dep.longitude]
+                    : (dep && dep.iata && AIRPORTS[dep.iata]) ? AIRPORTS[dep.iata] : null;
+      var arrCoords = (arr && typeof arr.latitude === 'number') ? [arr.latitude, arr.longitude]
+                    : (arr && arr.iata && AIRPORTS[arr.iata]) ? AIRPORTS[arr.iata] : null;
+      var hasDepCoords = !!depCoords;
+      var hasArrCoords = !!arrCoords;
       var hasLive = live && typeof live.latitude === 'number' && typeof live.longitude === 'number';
 
       if (hasDepCoords && hasArrCoords) {
-        var depPt = [dep.latitude, dep.longitude];
-        var arrPt = [arr.latitude, arr.longitude];
+        var depPt = depCoords;
+        var arrPt = arrCoords;
 
         if (status === 'active' && hasLive) {
           // Active flight with position — show full route + plane
@@ -1198,8 +1248,14 @@
 
           map.fitBounds(L.latLngBounds([depPt, arrPt]).pad(0.2), { duration: 0.8 });
         }
+      } else if (hasLive) {
+        // No airport coords but have live position — show plane marker
+        var planeM = L.marker([live.latitude, live.longitude], { icon: createPlaneIcon(typeof live.direction === 'number' ? live.direction : null) }).addTo(map);
+        planeM.on('click', function() { infoPanel.classList.toggle('visible'); });
+        markersList.push(planeM);
+        map.setView([live.latitude, live.longitude], 6, { duration: 0.8 });
       } else {
-        // No coordinates — just center on a wide view
+        // No coordinates at all — just center on a wide view
         map.setView([20, 0], 2, { duration: 0.5 });
       }
 
